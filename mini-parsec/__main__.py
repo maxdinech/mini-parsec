@@ -98,7 +98,7 @@ def reset_db_count():
 
 
 def download_database():
-    path = "data/Gutenberg/D357MB.zip"
+    path = "data/D357MB.zip"
     if not os.path.exists(path):
         url = "https://zenodo.org/record/3360392/files/D357MB.zip"
         console.log("Downloading databse...")
@@ -116,7 +116,7 @@ def download_database():
         console.log("Done.")
         console.log("Unzipping...")
         with zipfile.ZipFile(path, "r") as zip_ref:
-            zip_ref.extractall("data/Gutenberg")
+            zip_ref.extractall("data")
         console.log("Done.")
 
 
@@ -169,7 +169,7 @@ def search_token(conn, table, token: Token) -> list[str] | None:
 def search_word(conn, word: str) -> list[str] | None:
     console.log(f"Searching word : '{word}' using scheme {scheme}.")
     if scheme[:2] == "Pi":
-        token = tokenize_word(word)
+        token = tokenize_word(word.lower())
         assert token is not None, "Empty token"
         r1 = search_token(conn, "edb", token)
         console.log(f"EDB results : {r1}")
@@ -261,7 +261,7 @@ if __name__ == "__main__":
 
     count = 0
     for i in range(100):
-        path = f"data/Gutenberg/D357MB/{i}.txt"
+        path = f"data/D357MB/{i}.txt"
         try:
             add_file(conn, path)
         except FileNotFoundError:
@@ -276,7 +276,7 @@ if __name__ == "__main__":
     search_word(conn, "ache")
 
     for i in range(100, 200):
-        path = f"data/Gutenberg/D357MB/{i}.txt"
+        path = f"data/D357MB/{i}.txt"
         try:
             add_file(conn, path)
         except FileNotFoundError:
