@@ -1,3 +1,6 @@
+from tqdm import tqdm
+import requests
+import zipfile
 import hashlib
 import os
 import pickle
@@ -92,6 +95,29 @@ def reset_db_count():
         os.remove("data/server/db_count")
     except FileNotFoundError:
         pass
+
+
+def download_database():
+    path = "data/Gutenberg/D357MB.zip"
+    if not os.path.exists(path):
+        url = "https://zenodo.org/record/3360392/files/D357MB.zip"
+        console.log("Downloading databse...")
+        response = requests.get(url, stream=True)
+        total_size_in_bytes = int(response.headers.get("content-length", 0))
+        block_size = 1024
+        progress_bar = tqdm(total=total_size_in_bytes, unit="iB", unit_scale=True)
+        with open(path, "wb") as file:
+            for data in response.iter_content(block_size):
+                progress_bar.update(len(data))
+                file.write(data)
+        progress_bar.close()
+        if total_size_in_bytes != 0 and progress_bar.n != total_size_in_bytes:
+            print("ERROR, something went wrong")
+        console.log("Done.")
+        console.log("Unzipping...")
+        with zipfile.ZipFile(path, "r") as zip_ref:
+            zip_ref.extractall("data/Gutenberg")
+        console.log("Done.")
 
 
 def create_tables(conn) -> None:
@@ -226,6 +252,8 @@ def add_file(conn, path: str) -> None:
 
 
 if __name__ == "__main__":
+    download_database()
+
     conn = connect_db()
     reset_db(conn)
     reset_db_count()
@@ -233,7 +261,7 @@ if __name__ == "__main__":
 
     count = 0
     for i in range(100):
-        path = f"data/Gutenberg/D1.7GB/{i}.txt"
+        path = f"data/Gutenberg/D357MB/{i}.txt"
         try:
             add_file(conn, path)
         except FileNotFoundError:
@@ -248,7 +276,7 @@ if __name__ == "__main__":
     search_word(conn, "ache")
 
     for i in range(100, 200):
-        path = f"data/Gutenberg/D1.7GB/{i}.txt"
+        path = f"data/Gutenberg/D357MB/{i}.txt"
         try:
             add_file(conn, path)
         except FileNotFoundError:
