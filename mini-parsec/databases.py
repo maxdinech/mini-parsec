@@ -61,6 +61,17 @@ def download_enron_database():
         console.log("Done.")
 
 
+def reset_db(conn):
+    cursor = conn.cursor()
+    for tablename in ("edb", "edb2"):
+        query = f"DROP TABLE {tablename}"
+        try:
+            cursor.execute(query)
+        except psycopg.errors.UndefinedTable:
+            conn.rollback()
+    conn.commit()
+
+
 def create_tables(conn, scheme) -> None:
     cursor = conn.cursor()
     if scheme[:2] == "Pi":
@@ -69,9 +80,12 @@ def create_tables(conn, scheme) -> None:
             CREATE TABLE {tablename} (
                 token bytea,
                 file bytea
-            )"""
+            );"""
             cursor.execute(query)
-        conn.commit()
+            conn.commit()
+            query = f"""CREATE INDEX idx_{tablename} ON {tablename}(token);"""
+            cursor.execute(query)
+            conn.commit()
     assert True, "No table descriptions provided for this scheme."
 
 
@@ -101,14 +115,3 @@ def connect_db():
         dbname="mini-parsec", host="localhost", user="admin", port="5432"
     )
     return conn
-
-
-def reset_db(conn):
-    cursor = conn.cursor()
-    for tablename in ("edb", "edb2"):
-        query = f"DROP TABLE {tablename}"
-        try:
-            cursor.execute(query)
-        except psycopg.errors.UndefinedTable:
-            conn.rollback()
-    conn.commit()
