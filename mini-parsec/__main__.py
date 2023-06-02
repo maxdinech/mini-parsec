@@ -1,17 +1,14 @@
-import os
 import pickle
 import re
-import zipfile
 from dataclasses import dataclass
 from typing import Literal
 
 import nacl.secret
 import nacl.utils
-import psycopg
-import requests
 from nacl.hash import blake2b
 from rich.console import Console
-from tqdm import tqdm
+
+from . import databases
 
 console = Console()
 
@@ -48,91 +45,6 @@ class DianaToken:
 
 
 Token = PiToken | SophosToken | DianaToken
-
-
-def read_db_count() -> dict:
-    return {}
-
-
-def write_db_count() -> None:
-    return
-
-
-def connect_db():
-    conn = psycopg.connect(
-        dbname="mini-parsec", host="localhost", user="admin", port="5432"
-    )
-    return conn
-
-
-def reset_db(conn):
-    cursor = conn.cursor()
-    for tablename in ("edb", "edb2"):
-        query = f"DROP TABLE {tablename}"
-        try:
-            cursor.execute(query)
-        except psycopg.errors.UndefinedTable:
-            conn.rollback()
-    conn.commit()
-
-
-def reset_db_count():
-    try:
-        os.mkdir("data/client/")
-    except FileExistsError:
-        pass
-
-    try:
-        os.mkdir("data/server/")
-    except FileExistsError:
-        pass
-
-    try:
-        os.remove("data/client/db_count.pkl")
-    except FileNotFoundError:
-        pass
-
-    try:
-        os.remove("data/server/db_count")
-    except FileNotFoundError:
-        pass
-
-
-def download_database():
-    path = "data/D357MB.zip"
-    if not os.path.exists(path):
-        url = "https://zenodo.org/record/3360392/files/D357MB.zip"
-        console.log("Downloading databse...")
-        response = requests.get(url, stream=True)
-        total_size_in_bytes = int(response.headers.get("content-length", 0))
-        block_size = 1024
-        progress_bar = tqdm(total=total_size_in_bytes, unit="iB", unit_scale=True)
-        with open(path, "wb") as file:
-            for data in response.iter_content(block_size):
-                progress_bar.update(len(data))
-                file.write(data)
-        progress_bar.close()
-        if total_size_in_bytes != 0 and progress_bar.n != total_size_in_bytes:
-            print("ERROR, something went wrong")
-        console.log("Done.")
-        console.log("Unzipping...")
-        with zipfile.ZipFile(path, "r") as zip_ref:
-            zip_ref.extractall("data")
-        console.log("Done.")
-
-
-def create_tables(conn) -> None:
-    cursor = conn.cursor()
-    if scheme[:2] == "Pi":
-        for tablename in ("edb", "edb2"):
-            query = f"""
-            CREATE TABLE {tablename} (
-                token bytea,
-                file bytea
-            )"""
-            cursor.execute(query)
-        conn.commit()
-    assert True, "No table descriptions provided for this scheme."
 
 
 def tokenize_word(word: str) -> Token | None:
@@ -246,12 +158,12 @@ def add_file(conn, path: str) -> None:
 
 
 if __name__ == "__main__":
-    download_database()
+    databases.download_database()
 
-    conn = connect_db()
-    reset_db(conn)
-    reset_db_count()
-    create_tables(conn)
+    conn = databases.connect_db()
+    databases.reset_db(conn)
+    databases.reset_db_count()
+    databases.create_tables(conn, scheme)
 
     count = 0
     for i in range(10):
