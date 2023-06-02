@@ -1,4 +1,5 @@
 import argparse
+import os
 import pickle
 import re
 import time
@@ -125,7 +126,7 @@ def add_word(conn, word: str, count: int, path: str) -> list[str] | None:
     assert True, "No add method provided for this scheme."
 
 
-def add_file_index(conn, path: str) -> None:
+def add_file_index(conn, path: str, min_length=3) -> None:
     # Load DB_count
     try:
         with open("data/server/db_count", "rb") as ef:
@@ -144,13 +145,11 @@ def add_file_index(conn, path: str) -> None:
     # Build file index
     word_count = 0
     index = set()
-    regex = re.compile("[^a-zA-Z]")
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
-            line_clean = regex.sub(" ", line.lower())
-            words = [w for w in line_clean.split(" ") if w]
-            for word in words:
-                index.add(word)
+            words = re.findall(r"\w+", line.lower())
+            words = set(w for w in words if len(w) >= min_length)
+            index.update(words)
             word_count += len(words)
 
     for word in index:
@@ -205,13 +204,23 @@ class Watcher:
 class MyHandler(FileSystemEventHandler):
     def on_any_event(self, event):
         if event.event_type == "created":
-            console.log(event)
             path = event.src_path
-            filename = path.split("/")[-1]
-            if filename != "db_count.pkl":
-                console.log(f"Adding file '{path}'")
-                t1, t2 = add_file(conn, path)
-                console.log(f"Encryption : {t1:.2f}s, indexing : {t2:.2f}s\n")
+            if event.is_directory:
+                server_path = "data/server/" + path.split("client/")[-1]
+                try:
+                    os.mkdir(server_path)
+                except FileExistsError:
+                    pass
+            else:
+                filename = path.split("/")[-1]
+                if filename != "db_count.pkl":
+                    console.log(f"Adding file '{path}'")
+                    try:
+                        t1, t2 = add_file(conn, path)
+                    except UnicodeDecodeError:
+                        console.log(f"Error: Failed to decode file {path}")
+                    else:
+                        console.log(f"Encryption: {t1:.2f}s, indexing: {t2:.2f}s\n")
 
 
 if __name__ == "__main__":
