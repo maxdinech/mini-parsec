@@ -1,3 +1,4 @@
+import argparse
 import pickle
 import re
 import time
@@ -18,15 +19,10 @@ console = Console()
 Scheme = Literal["PiBas", "PiPack", "PiBasPlus", "PiBasDyn" "Sophos", "Diana"]
 
 
-# Params
-
-scheme: Scheme = "PiBas"
+scheme: Scheme = "PiBasPlus"
 keyword: bytes = b"test"
 KEY: bytes = blake2b(keyword)[:32]
 BOX = nacl.secret.SecretBox(KEY)
-
-
-new_KEY: bytes = b"e8q-TDOEho--oXF99dkIM6XERuXsxdDZpopvqYc4h-0="
 
 
 @dataclass
@@ -84,6 +80,7 @@ def search_token(conn, table, token: Token) -> list[str] | None:
 def search_word(conn, word: str) -> list[str] | None:
     console.log(f"Searching word : '{word}' using scheme {scheme}.")
     if scheme[:2] == "Pi":
+        t0 = time.time()
         token = tokenize_word(word.lower())
         assert token is not None, "Empty token"
         r1 = search_token(conn, "edb", token)
@@ -95,6 +92,7 @@ def search_word(conn, word: str) -> list[str] | None:
             result += r1
         if r2 is not None:
             result += r2
+        console.log(f"Total: {len(result)} matches, in {time.time() - t0:.2f} seconds.")
     assert True, "No search method provided for this scheme."
 
 
@@ -207,6 +205,7 @@ class Watcher:
 class MyHandler(FileSystemEventHandler):
     def on_any_event(self, event):
         if event.event_type == "created":
+            console.log(event)
             path = event.src_path
             filename = path.split("/")[-1]
             if filename != "db_count.pkl":
@@ -216,43 +215,32 @@ class MyHandler(FileSystemEventHandler):
 
 
 if __name__ == "__main__":
-    databases.download_database()
+    parser = argparse.ArgumentParser(
+        prog="Mini-Parsec",
+        description="Mini-Parsec : client et recherche.",
+    )
+    _ = parser.add_argument("mode", nargs="?", default="sync")
+    _ = parser.add_argument("--delete", help="delete files", action="store_true")
+    _ = parser.add_argument("--query", type=str, help="search term", default="")
 
-    conn = databases.connect_db()
-    databases.reset_db(conn)
-    databases.reset_db_count()
-    databases.create_tables(conn, scheme)
+    args = parser.parse_args()
 
-    w = Watcher("data/client/", MyHandler())
-    w.run()
+    if args.mode == "sync":
+        databases.download_gutenberg_database()
+        databases.download_enron_database()
 
-    # count = 0
-    # for i in range(10):
-    #     path = f"data/D357MB/{i}.txt"
-    #     try:
-    #         add_file(conn, path)
-    #     except FileNotFoundError:
-    #         pass
-    #     else:
-    #         console.log(f"Adding file {path}")
-    #         count += 1
-    # console.log(f"Added {count} files.")
-    #
-    # search_word(conn, "and")
-    # search_word(conn, "pull")
-    # search_word(conn, "ache")
-    #
-    # for i in range(100, 200):
-    #     path = f"data/D357MB/{i}.txt"
-    #     try:
-    #         add_file(conn, path)
-    #     except FileNotFoundError:
-    #         pass
-    #     else:
-    #         console.log(f"Adding file {path}")
-    #         count += 1
-    # console.log(f"Added {count} files.")
-    #
-    # search_word(conn, "and")
-    # search_word(conn, "pull")
-    # search_word(conn, "ache")
+        conn = databases.connect_db()
+        if args.delete:
+            console.log("Clearing database.")
+            databases.reset_db(conn)
+            databases.reset_db_count()
+            console.log("Deleting local files.")
+            databases.create_tables(conn, scheme)
+
+        w = Watcher("data/client/", MyHandler())
+        w.run()
+
+    if args.mode == "search":
+        conn = databases.connect_db()
+        query = args.query
+        search_word(conn, query)
