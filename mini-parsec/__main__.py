@@ -1,5 +1,6 @@
 import pickle
 import re
+import time
 from dataclasses import dataclass
 from typing import Literal
 
@@ -7,6 +8,8 @@ import nacl.secret
 import nacl.utils
 from nacl.hash import blake2b
 from rich.console import Console
+from watchdog.events import FileSystemEventHandler
+from watchdog.observers import Observer
 
 from . import databases
 
@@ -95,6 +98,17 @@ def search_word(conn, word: str) -> list[str] | None:
     assert True, "No search method provided for this scheme."
 
 
+def encrypt_file(path: str) -> None:
+    dest_path = "data/server/" + path.split("client/")[-1]
+    try:
+        with open(path, "rb") as f:
+            encrypted = BOX.encrypt(f.read())
+            with open(dest_path, "wb") as ef:
+                ef.write(encrypted)
+    except FileNotFoundError:
+        console.log("File to encrypt not found.")
+
+
 def add_word(conn, word: str, count: int, path: str) -> list[str] | None:
     cursor = conn.cursor()
     if scheme[:2] == "Pi":
@@ -113,7 +127,7 @@ def add_word(conn, word: str, count: int, path: str) -> list[str] | None:
     assert True, "No add method provided for this scheme."
 
 
-def add_file(conn, path: str) -> None:
+def add_file_index(conn, path: str) -> None:
     # Load DB_count
     try:
         with open("data/server/db_count", "rb") as ef:
@@ -130,20 +144,25 @@ def add_file(conn, path: str) -> None:
         db_count = {}
 
     # Build file index
+    word_count = 0
     index = set()
     regex = re.compile("[^a-zA-Z]")
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         for line in f:
-            line_clean = regex.sub(" ", line).lower()
+            line_clean = regex.sub(" ", line.lower())
             words = [w for w in line_clean.split(" ") if w]
             for word in words:
                 index.add(word)
+            word_count += len(words)
 
     for word in index:
         count = db_count.get(word, 0)
         add_word(conn, word, count, path)
         db_count[word] = count + 1
     conn.commit()
+    console.log(
+        f"Words: {word_count:6,d}, Unique words : {len(index):6,d}, DB_count : {len(db_count):6,d}"
+    )
 
     # Save DB_count
     with open("data/client/db_count.pkl", "wb") as f:
@@ -157,6 +176,45 @@ def add_file(conn, path: str) -> None:
         pass
 
 
+def add_file(conn, path: str) -> tuple[float, float]:
+    t0 = time.time()
+    encrypt_file(path)
+    t1 = time.time() - t0
+    add_file_index(conn, path)
+    t2 = time.time() - t0 - t1
+    return (t1, t2)
+
+
+class Watcher:
+    def __init__(self, directory, handler):
+        self.observer = Observer()
+        self.handler = handler
+        self.directory = directory
+
+    def run(self):
+        self.observer.schedule(self.handler, self.directory, recursive=True)
+        self.observer.start()
+        console.log(f"Watcher Running in {self.directory}.")
+        try:
+            while True:
+                time.sleep(1)
+        except:
+            self.observer.stop()
+        self.observer.join()
+        console.log("Watcher Terminated.")
+
+
+class MyHandler(FileSystemEventHandler):
+    def on_any_event(self, event):
+        if event.event_type == "created":
+            path = event.src_path
+            filename = path.split("/")[-1]
+            if filename != "db_count.pkl":
+                console.log(f"Adding file '{path}'")
+                t1, t2 = add_file(conn, path)
+                console.log(f"Encryption : {t1:.2f}s, indexing : {t2:.2f}s\n")
+
+
 if __name__ == "__main__":
     databases.download_database()
 
@@ -165,33 +223,36 @@ if __name__ == "__main__":
     databases.reset_db_count()
     databases.create_tables(conn, scheme)
 
-    count = 0
-    for i in range(10):
-        path = f"data/D357MB/{i}.txt"
-        try:
-            add_file(conn, path)
-        except FileNotFoundError:
-            pass
-        else:
-            console.log(f"Adding file {path}")
-            count += 1
-    console.log(f"Added {count} files.")
+    w = Watcher("data/client/", MyHandler())
+    w.run()
 
-    search_word(conn, "and")
-    search_word(conn, "pull")
-    search_word(conn, "ache")
-
-    for i in range(100, 200):
-        path = f"data/D357MB/{i}.txt"
-        try:
-            add_file(conn, path)
-        except FileNotFoundError:
-            pass
-        else:
-            console.log(f"Adding file {path}")
-            count += 1
-    console.log(f"Added {count} files.")
-
-    search_word(conn, "and")
-    search_word(conn, "pull")
-    search_word(conn, "ache")
+    # count = 0
+    # for i in range(10):
+    #     path = f"data/D357MB/{i}.txt"
+    #     try:
+    #         add_file(conn, path)
+    #     except FileNotFoundError:
+    #         pass
+    #     else:
+    #         console.log(f"Adding file {path}")
+    #         count += 1
+    # console.log(f"Added {count} files.")
+    #
+    # search_word(conn, "and")
+    # search_word(conn, "pull")
+    # search_word(conn, "ache")
+    #
+    # for i in range(100, 200):
+    #     path = f"data/D357MB/{i}.txt"
+    #     try:
+    #         add_file(conn, path)
+    #     except FileNotFoundError:
+    #         pass
+    #     else:
+    #         console.log(f"Adding file {path}")
+    #         count += 1
+    # console.log(f"Added {count} files.")
+    #
+    # search_word(conn, "and")
+    # search_word(conn, "pull")
+    # search_word(conn, "ache")
