@@ -1,20 +1,17 @@
-from tqdm import tqdm
-import requests
-import zipfile
-import hashlib
 import os
 import pickle
-from cryptography.fernet import Fernet
 import re
-import base64
-from typing import Literal
-import psycopg
-import hmac
-
-from rich.console import Console
-import testing.postgresql
-from sqlalchemy import create_engine
+import zipfile
 from dataclasses import dataclass
+from typing import Literal
+
+import nacl.secret
+import nacl.utils
+import psycopg
+import requests
+from nacl.hash import blake2b
+from rich.console import Console
+from tqdm import tqdm
 
 console = Console()
 
@@ -24,7 +21,11 @@ Scheme = Literal["PiBas", "PiPack", "PiBasPlus", "PiBasDyn" "Sophos", "Diana"]
 # Params
 
 scheme: Scheme = "PiBas"
-KEY: bytes = b"e8q-TDOEho--oXF99dkIM6XERuXsxdDZpopvqYc4h-0="
+keyword: bytes = b"test"
+KEY: bytes = blake2b(keyword)[:32]
+BOX = nacl.secret.SecretBox(KEY)
+
+
 new_KEY: bytes = b"e8q-TDOEho--oXF99dkIM6XERuXsxdDZpopvqYc4h-0="
 
 
@@ -134,32 +135,31 @@ def create_tables(conn) -> None:
     assert True, "No table descriptions provided for this scheme."
 
 
-def hmac2(key: bytes, string: str) -> bytes:
-    digestmod = "SHA-1"
-    return hmac.new(key, string.encode(), digestmod=digestmod).digest()
-
-
 def tokenize_word(word: str) -> Token | None:
     if scheme[:2] == "Pi":
-        return PiToken(hmac2(KEY, f"1{word}"), hmac2(KEY, f"2{word}"))
+        return PiToken(
+            blake2b(f"1{word}".encode("utf-8"), key=KEY),
+            blake2b(f"2{word}".encode("utf-8"), key=KEY),
+        )
     assert True, "No tokenization method provided for this scheme."
 
 
 def search_token(conn, table, token: Token) -> list[str] | None:
     cursor = conn.cursor()
     if scheme[:2] == "Pi":
-        fernet = Fernet(gen_fernet_key(token.k2))
+        key = blake2b(token.k2)[:32]
+        box = nacl.secret.SecretBox(key)
         count = 0
         result = []
         while True:
             query = f"SELECT file FROM {table} WHERE token = %s;"
-            query_key = hmac2(token.k1, str(count))
+            query_key = blake2b(bytes(count), key=token.k1)
             data = (query_key,)
             cursor.execute(query, data)
             fetchone = cursor.fetchone()
             if fetchone is None:
                 break
-            path = fernet.decrypt(fetchone[0]).decode("utf-8")
+            path = box.decrypt(fetchone[0]).decode("utf-8")
             result.append(path)
             count += 1
         return result
@@ -183,25 +183,19 @@ def search_word(conn, word: str) -> list[str] | None:
     assert True, "No search method provided for this scheme."
 
 
-def gen_fernet_key(passcode: bytes) -> bytes:
-    assert isinstance(passcode, bytes)
-    hlib = hashlib.md5()
-    hlib.update(passcode)
-    return base64.urlsafe_b64encode(hlib.hexdigest().encode("utf-8"))
-
-
 def add_word(conn, word: str, count: int, path: str) -> list[str] | None:
     cursor = conn.cursor()
     if scheme[:2] == "Pi":
         token = tokenize_word(word)
         assert token is not None, "Empty token"
+
         query = f"INSERT INTO edb2 VALUES (%s, %s)"
-        query_key = hmac2(token.k1, str(count))
+        query_key = blake2b(bytes(count), key=token.k1)
 
-        fernet = Fernet(gen_fernet_key(token.k2))
-        query_value = fernet.encrypt(bytes(path, "utf-8"))
+        key = blake2b(token.k2)[:32]
+        box = nacl.secret.SecretBox(key)
+        query_value = box.encrypt(bytes(path, "utf-8"))
 
-        hmac2(token.k1, str(count))
         data = (query_key, query_value)
         cursor.execute(query, data)
     assert True, "No add method provided for this scheme."
@@ -211,7 +205,7 @@ def add_file(conn, path: str) -> None:
     # Load DB_count
     try:
         with open("data/server/db_count", "rb") as ef:
-            db_count_file = Fernet(KEY).decrypt(ef.read())
+            db_count_file = BOX.decrypt(ef.read())
             with open("data/client/db_count.pkl", "wb") as f:
                 f.write(db_count_file)
     except FileNotFoundError:
@@ -244,7 +238,7 @@ def add_file(conn, path: str) -> None:
         pickle.dump(db_count, f)
     try:
         with open("data/client/db_count.pkl", "rb") as f:
-            db_count_file = Fernet(KEY).encrypt(f.read())
+            db_count_file = BOX.encrypt(f.read())
             with open("data/server/db_count", "wb") as ef:
                 ef.write(db_count_file)
     except FileNotFoundError:
@@ -260,7 +254,7 @@ if __name__ == "__main__":
     create_tables(conn)
 
     count = 0
-    for i in range(100):
+    for i in range(10):
         path = f"data/D357MB/{i}.txt"
         try:
             add_file(conn, path)
