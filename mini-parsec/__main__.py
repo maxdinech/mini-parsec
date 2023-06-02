@@ -85,15 +85,16 @@ def search_word(conn, word: str) -> list[str] | None:
         token = tokenize_word(word.lower())
         assert token is not None, "Empty token"
         r1 = search_token(conn, "edb", token)
-        console.log(f"EDB results : {r1}")
+        # console.log(f"EDB results : {r1}")
         r2 = search_token(conn, "edb2", token)
-        console.log(f"EDB' results : {r2}")
+        # console.log(f"EDB' results : {r2}")
         result = []
         if r1 is not None:
             result += r1
         if r2 is not None:
             result += r2
         console.log(f"Total: {len(result)} matches, in {time.time() - t0:.2f} seconds.")
+        return result
     assert True, "No search method provided for this scheme."
 
 
@@ -252,4 +253,9 @@ if __name__ == "__main__":
     if args.mode == "search":
         conn = databases.connect_db()
         query = args.query
-        search_word(conn, query)
+        words = query.split("+")
+        results = None
+        results = [search_word(conn, word) for word in words]
+        results = [set(r) for r in results if r is not None]
+        intersection = set.intersection(*results)
+        console.log(f"Intersection: {len(intersection)} matches : {intersection}")
