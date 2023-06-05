@@ -77,11 +77,12 @@ def search_word(conn: Connection, word: str, key, scheme: Scheme) -> list[str] |
     assert True, "No search method provided for this scheme."
 
 
-def encrypt_file(path: str) -> None:
+def encrypt_file(path: str, key: bytes) -> None:
+    box = nacl.secret.SecretBox(key)
     dest_path = "data/server/" + path.split("client/")[-1]
     try:
         with open(path, "rb") as f:
-            encrypted = BOX.encrypt(f.read())
+            encrypted = box.encrypt(f.read())
             with open(dest_path, "wb") as ef:
                 ef.write(encrypted)
     except FileNotFoundError:
@@ -112,11 +113,21 @@ def add_word(
 def add_file_index(
     conn: Connection, path: str, key: bytes, scheme: Scheme, min_length: int = 3
 ) -> None:
+    """Indexation d'un fichier.
+
+    Args:
+        conn: Connexion PostgreSQL
+        path: Chemin du fichier
+        scheme: Schéma de chiffrement
+        key: Clé de chiffrement
+        min_length: Longueur monimale de mot
+    """
+    box = nacl.secret.SecretBox(key)
     if isinstance(scheme, schemes.PiBasPlus):
         # Load DB_count
         try:
             with open("data/server/db_count", "rb") as ef:
-                db_count_file = BOX.decrypt(ef.read())
+                db_count_file = box.decrypt(ef.read())
                 with open("data/client/db_count.pkl", "wb") as f:
                     f.write(db_count_file)
         except FileNotFoundError:
@@ -154,7 +165,7 @@ def add_file_index(
             pickle.dump(db_count, f)
         try:
             with open("data/client/db_count.pkl", "rb") as f:
-                db_count_file = BOX.encrypt(f.read())
+                db_count_file = box.encrypt(f.read())
                 with open("data/server/db_count", "wb") as ef:
                     ef.write(db_count_file)
         except FileNotFoundError:
@@ -162,8 +173,15 @@ def add_file_index(
 
 
 def add_file(conn: Connection, path: str, key: bytes) -> tuple[float, float]:
+    """Ajout d'un fichier au serveur.
+
+    Args:
+        conn: Connexion PostgreSQL
+        path: Chemin du fichier
+        key: Clé de chiffrement
+    """
     t0 = time.time()
-    encrypt_file(path)
+    encrypt_file(path, key)
     t1 = time.time() - t0
     add_file_index(conn, path, key, scheme)
     t2 = time.time() - t0 - t1
@@ -231,7 +249,6 @@ if __name__ == "__main__":
 
     keyword: bytes = bytes(args.key, "utf-8")
     KEY: bytes = blake2b(keyword)[:32]
-    BOX = nacl.secret.SecretBox(KEY)
 
     match args.mode:
         case "dataset":
@@ -255,9 +272,8 @@ if __name__ == "__main__":
             new_keyword = bytes(args.newkey, "utf-8")
             if new_keyword != keyword:
                 NEW_KEY: bytes = blake2b(keyword)[:32]
-                NEW_BOX = nacl.secret.SecretBox(KEY)
                 # Stuff here
-                keyword, KEY, BOX = new_keyword, NEW_KEY, NEW_BOX
+                keyword, KEY = new_keyword, NEW_KEY
 
             console.log("Repack done.")
 

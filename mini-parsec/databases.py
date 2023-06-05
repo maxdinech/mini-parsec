@@ -33,8 +33,8 @@ def create_tables(conn, scheme: Scheme) -> None:
             );"""
             cursor.execute(query)
             conn.commit()
-            query = sql.SQL("CREATE INDEX idx_{} ON {}(token);").format(
-                sql.Identifier(tablename), sql.Identifier(tablename)
+            query = sql.SQL("CREATE INDEX {} ON {}(token);").format(
+                sql.Identifier(f"idx_{tablename}"), sql.Identifier(tablename)
             )
             cursor.execute(query)
             conn.commit()
