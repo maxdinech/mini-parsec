@@ -3,62 +3,45 @@ import os
 import pickle
 import re
 import time
-from dataclasses import dataclass
-from typing import Literal
 
 import nacl.secret
 import nacl.utils
 from nacl.hash import blake2b
+from psycopg import Connection, sql
 from rich.console import Console
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-from . import databases
+from . import databases, datasets, schemes, tokens
+from .schemes import Scheme
+from .tokens import Token
 
 console = Console()
 
-Scheme = Literal["PiBas", "PiPack", "PiBasPlus", "PiBasDyn" "Sophos", "Diana"]
 
-
-@dataclass
-class PiToken:
-    k1: bytes
-    k2: bytes
-
-
-@dataclass
-class SophosToken:
-    k1: bytes
-    k2: bytes
-
-
-@dataclass
-class DianaToken:
-    k1: bytes
-    k2: bytes
-
-
-Token = PiToken | SophosToken | DianaToken
-
-
-def tokenize_word(word: str) -> Token | None:
-    if scheme[:2] == "Pi":
-        return PiToken(
-            blake2b(f"1{word}".encode("utf-8"), key=KEY),
-            blake2b(f"2{word}".encode("utf-8"), key=KEY),
+def tokenize_word(word: str, key: bytes, scheme: Scheme) -> Token | None:
+    if isinstance(scheme, schemes.PiBasPlus):
+        return tokens.PiToken(
+            blake2b(f"1{word}".encode("utf-8"), key=key),
+            blake2b(f"2{word}".encode("utf-8"), key=key),
         )
     assert True, "No tokenization method provided for this scheme."
 
 
-def search_token(conn, table, token: Token) -> list[str] | None:
+def search_token(
+    conn: Connection, table: str, token: Token, scheme: Scheme
+) -> list[str] | None:
     cursor = conn.cursor()
-    if scheme[:2] == "Pi":
+    if isinstance(scheme, schemes.PiBasPlus):
+        assert isinstance(token, tokens.PiToken), "Invalid token for this scheme."
         key = blake2b(token.k2)[:32]
         box = nacl.secret.SecretBox(key)
         count = 0
         result = []
         while True:
-            query = f"SELECT file FROM {table} WHERE token = %s;"
+            query = sql.SQL("SELECT file FROM {} WHERE token = %s;").format(
+                sql.Identifier(table)
+            )
             query_key = blake2b(bytes(count), key=token.k1)
             data = (query_key,)
             cursor.execute(query, data)
@@ -72,23 +55,25 @@ def search_token(conn, table, token: Token) -> list[str] | None:
     assert True, "No query method provided for this scheme."
 
 
-def search_word(conn, word: str) -> list[str] | None:
+def search_word(conn: Connection, word: str, key, scheme: Scheme) -> list[str] | None:
     console.log(f"Searching word : '{word}' using scheme {scheme}.")
-    if scheme[:2] == "Pi":
+    if isinstance(scheme, schemes.PiBasPlus):
         t0 = time.time()
-        token = tokenize_word(word.lower())
-        assert token is not None, "Empty token"
-        r1 = search_token(conn, "edb", token)
-        # console.log(f"EDB results : {r1}")
-        r2 = search_token(conn, "edb2", token)
-        # console.log(f"EDB' results : {r2}")
+        token = tokenize_word(word.lower(), key, scheme)
+        assert isinstance(token, tokens.PiToken), "Invalid token for this scheme."
+
+        r1 = search_token(conn, "edb", token, scheme)
+        r2 = search_token(conn, "edb2", token, scheme)
+
         result = []
         if r1 is not None:
             result += r1
         if r2 is not None:
             result += r2
+
         console.log(f"Total: {len(result)} matches, in {time.time() - t0:.2f} seconds.")
         return result
+
     assert True, "No search method provided for this scheme."
 
 
@@ -103,15 +88,18 @@ def encrypt_file(path: str) -> None:
         console.log("File to encrypt not found.")
 
 
-def add_word(conn, word: str, count: int, path: str) -> list[str] | None:
+def add_word(
+    conn: Connection, word: str, count: int, path: str, key, scheme: Scheme
+) -> list[str] | None:
     cursor = conn.cursor()
-    if scheme[:2] == "Pi":
-        token = tokenize_word(word)
+    if isinstance(scheme, schemes.PiBasPlus):
+        token = tokenize_word(word, key, scheme)
+        assert isinstance(token, tokens.PiToken), "Invalid token for this scheme."
         assert token is not None, "Empty token"
 
-        query = "INSERT INTO edb2 VALUES (%s, %s)"
-        query_key = blake2b(bytes(count), key=token.k1)
+        query = sql.SQL("INSERT INTO {} VALUES (%s, %s)").format(sql.Identifier("edb2"))
 
+        query_key = blake2b(bytes(count), key=token.k1)
         key = blake2b(token.k2)[:32]
         box = nacl.secret.SecretBox(key)
         query_value = box.encrypt(bytes(path, "utf-8"))
@@ -121,58 +109,63 @@ def add_word(conn, word: str, count: int, path: str) -> list[str] | None:
     assert True, "No add method provided for this scheme."
 
 
-def add_file_index(conn, path: str, min_length=3) -> None:
-    # Load DB_count
-    try:
-        with open("data/server/db_count", "rb") as ef:
-            db_count_file = BOX.decrypt(ef.read())
-            with open("data/client/db_count.pkl", "wb") as f:
-                f.write(db_count_file)
-    except FileNotFoundError:
-        pass
+def add_file_index(
+    conn: Connection, path: str, key: bytes, scheme: Scheme, min_length: int = 3
+) -> None:
+    if isinstance(scheme, schemes.PiBasPlus):
+        # Load DB_count
+        try:
+            with open("data/server/db_count", "rb") as ef:
+                db_count_file = BOX.decrypt(ef.read())
+                with open("data/client/db_count.pkl", "wb") as f:
+                    f.write(db_count_file)
+        except FileNotFoundError:
+            pass
 
-    try:
-        with open("data/client/db_count.pkl", "rb") as f:
-            db_count = pickle.load(f)
-    except FileNotFoundError:
-        db_count = {}
+        try:
+            with open("data/client/db_count.pkl", "rb") as f:
+                db_count = pickle.load(f)
+        except FileNotFoundError:
+            db_count = {}
 
-    # Build file index
-    word_count = 0
-    index = set()
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            words = re.findall(r"\w+", line.lower())
-            words = set(w for w in words if len(w) >= min_length)
-            index.update(words)
-            word_count += len(words)
+        # Build file index
+        word_count = 0
+        index = set()
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                words = re.findall(r"\w+", line.lower())
+                words = set(w for w in words if len(w) >= min_length)
+                index.update(words)
+                word_count += len(words)
 
-    for word in index:
-        count = db_count.get(word, 0)
-        add_word(conn, word, count, path)
-        db_count[word] = count + 1
-    conn.commit()
-    console.log(
-        f"Words: {word_count:6,d}, Unique words : {len(index):6,d}, DB_count : {len(db_count):6,d}"
-    )
+        for word in index:
+            count = db_count.get(word, 0)
+            add_word(conn, word, count, path, key, scheme)
+            db_count[word] = count + 1
+        conn.commit()
+        console.log(
+            f"Words: {word_count:6,d}, "
+            f"Unique words : {len(index):6,d}, "
+            f"DB_count : {len(db_count):6,d}."
+        )
 
-    # Save DB_count
-    with open("data/client/db_count.pkl", "wb") as f:
-        pickle.dump(db_count, f)
-    try:
-        with open("data/client/db_count.pkl", "rb") as f:
-            db_count_file = BOX.encrypt(f.read())
-            with open("data/server/db_count", "wb") as ef:
-                ef.write(db_count_file)
-    except FileNotFoundError:
-        pass
+        # Save DB_count
+        with open("data/client/db_count.pkl", "wb") as f:
+            pickle.dump(db_count, f)
+        try:
+            with open("data/client/db_count.pkl", "rb") as f:
+                db_count_file = BOX.encrypt(f.read())
+                with open("data/server/db_count", "wb") as ef:
+                    ef.write(db_count_file)
+        except FileNotFoundError:
+            pass
 
 
-def add_file(conn, path: str) -> tuple[float, float]:
+def add_file(conn: Connection, path: str, key: bytes) -> tuple[float, float]:
     t0 = time.time()
     encrypt_file(path)
     t1 = time.time() - t0
-    add_file_index(conn, path)
+    add_file_index(conn, path, key, scheme)
     t2 = time.time() - t0 - t1
     return (t1, t2)
 
@@ -197,6 +190,9 @@ class Watcher:
 
 
 class MyHandler(FileSystemEventHandler):
+    def __init__(self, key: bytes) -> None:
+        self.key: bytes = key
+
     def on_any_event(self, event):
         if event.event_type == "created":
             path = event.src_path
@@ -211,7 +207,7 @@ class MyHandler(FileSystemEventHandler):
                 if filename != "db_count.pkl":
                     console.log(f"Adding file '{path}'")
                     try:
-                        t1, t2 = add_file(conn, path)
+                        t1, t2 = add_file(conn, path, self.key)
                     except UnicodeDecodeError:
                         console.log(f"Error: Failed to decode file {path}")
                     else:
@@ -219,14 +215,14 @@ class MyHandler(FileSystemEventHandler):
 
 
 if __name__ == "__main__":
-    scheme: Scheme = "PiBasPlus"
+    scheme: Scheme = schemes.PiBasPlus()
     parser = argparse.ArgumentParser(
         prog="Mini-Parsec",
         description="Mini-Parsec : client et recherche.",
     )
     _ = parser.add_argument("mode", nargs="?", default="sync")
     _ = parser.add_argument("-K", "--key", type=str, help="search term", required=True)
-    _ = parser.add_argument("-r-", "-reset", help="reset server", action="store_true")
+    _ = parser.add_argument("-r-", "--reset", help="reset server", action="store_true")
     _ = parser.add_argument("-s", "--show", help="show results", action="store_true")
     _ = parser.add_argument("-q", "--query", type=str, help="search term", default="")
     _ = parser.add_argument("-K2", "--newkey", type=str, help="new key", default="")
@@ -237,40 +233,45 @@ if __name__ == "__main__":
     KEY: bytes = blake2b(keyword)[:32]
     BOX = nacl.secret.SecretBox(KEY)
 
-    databases.download_gutenberg_database()
-    databases.download_enron_database()
+    match args.mode:
+        case "dataset":
+            datasets.download_gutenberg_database()
+            datasets.download_enron_database()
 
-    if args.mode == "server":
-        conn = databases.connect_db()
-        if args.reset:
-            console.log("Clearing database.")
-            databases.reset_db(conn)
-            databases.reset_db_count()
-            console.log("Deleting local files.")
-            databases.create_tables(conn, scheme)
+        case "server":
+            conn = databases.connect_db()
+            if args.reset:
+                console.log("Clearing database.")
+                databases.reset_db(conn)
+                databases.reset_db_count()
+                console.log("Deleting local files.")
+                databases.create_tables(conn, scheme)
 
-        w = Watcher("data/client/", MyHandler())
-        w.run()
+            w = Watcher("data/client/", MyHandler(KEY))
+            w.run()
 
-    if args.mode == "repack":
-        conn = databases.connect_db()
-        new_keyword = bytes(args.newkey, "utf-8")
-        if new_keyword != keyword:
-            NEW_KEY: bytes = blake2b(keyword)[:32]
-            NEW_BOX = nacl.secret.SecretBox(KEY)
-            # Stuff here
-            keyword, KEY, BOX = new_keyword, NEW_KEY, NEW_BOX
+        case "repack":
+            conn = databases.connect_db()
+            new_keyword = bytes(args.newkey, "utf-8")
+            if new_keyword != keyword:
+                NEW_KEY: bytes = blake2b(keyword)[:32]
+                NEW_BOX = nacl.secret.SecretBox(KEY)
+                # Stuff here
+                keyword, KEY, BOX = new_keyword, NEW_KEY, NEW_BOX
 
-        console.log("Repack done.")
+            console.log("Repack done.")
 
-    if args.mode == "search":
-        conn = databases.connect_db()
-        query = args.query
-        words = query.split("+")
-        results = None
-        results = [search_word(conn, word) for word in words]
-        results = [set(r) for r in results if r is not None]
-        intersection = set.intersection(*results)
-        if args.show:
-            console.log(intersection)
-        console.log(f"Intersection: {len(intersection)} matches.")
+        case "search":
+            conn = databases.connect_db()
+            query = args.query
+            words = query.split("+")
+            results = None
+            results = [search_word(conn, word, KEY, scheme) for word in words]
+            results = [set(r) for r in results if r is not None]
+            intersection = set.intersection(*results)
+            if args.show:
+                console.log(intersection)
+            console.log(f"Intersection: {len(intersection)} matches.")
+
+        case _:
+            console.log("Invalid mode.")
