@@ -2,11 +2,18 @@
 
 ![Logo de Parsec](https://github.com/Scille/parsec-cloud/blob/master/docs/parsec_doc_logo.png)
 
-## Utilisation
+## Installation
 
 Il faut un serveur PostgreSQL avec une base `mini-parsec` existante.
 
-La création de tables est gérée automatiquement par le script.
+Après clonage du repo :
+
+```bash
+poetry install
+```
+
+Note : Si besoin, remplacer `python -m` par `poetry run python -m` dans les commandes qui suivent.
+
 
 ### Datasets
 
