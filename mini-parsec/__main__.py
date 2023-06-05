@@ -20,12 +20,6 @@ console = Console()
 Scheme = Literal["PiBas", "PiPack", "PiBasPlus", "PiBasDyn" "Sophos", "Diana"]
 
 
-scheme: Scheme = "PiBasPlus"
-keyword: bytes = b"test"
-KEY: bytes = blake2b(keyword)[:32]
-BOX = nacl.secret.SecretBox(KEY)
-
-
 @dataclass
 class PiToken:
     k1: bytes
@@ -115,7 +109,7 @@ def add_word(conn, word: str, count: int, path: str) -> list[str] | None:
         token = tokenize_word(word)
         assert token is not None, "Empty token"
 
-        query = f"INSERT INTO edb2 VALUES (%s, %s)"
+        query = "INSERT INTO edb2 VALUES (%s, %s)"
         query_key = blake2b(bytes(count), key=token.k1)
 
         key = blake2b(token.k2)[:32]
@@ -192,7 +186,7 @@ class Watcher:
     def run(self):
         self.observer.schedule(self.handler, self.directory, recursive=True)
         self.observer.start()
-        console.log(f"Watcher Running in {self.directory}.")
+        console.log(f"Watcher Running in {self.directory}. You can add files now.")
         try:
             while True:
                 time.sleep(1)
@@ -225,22 +219,30 @@ class MyHandler(FileSystemEventHandler):
 
 
 if __name__ == "__main__":
+    scheme: Scheme = "PiBasPlus"
     parser = argparse.ArgumentParser(
         prog="Mini-Parsec",
         description="Mini-Parsec : client et recherche.",
     )
     _ = parser.add_argument("mode", nargs="?", default="sync")
-    _ = parser.add_argument("--delete", help="delete files", action="store_true")
-    _ = parser.add_argument("--query", type=str, help="search term", default="")
+    _ = parser.add_argument("-K", "--key", type=str, help="search term", required=True)
+    _ = parser.add_argument("-r-", "-reset", help="reset server", action="store_true")
+    _ = parser.add_argument("-s", "--show", help="show results", action="store_true")
+    _ = parser.add_argument("-q", "--query", type=str, help="search term", default="")
+    _ = parser.add_argument("-K2", "--newkey", type=str, help="new key", default="")
 
     args = parser.parse_args()
 
-    if args.mode == "sync":
-        databases.download_gutenberg_database()
-        databases.download_enron_database()
+    keyword: bytes = bytes(args.key, "utf-8")
+    KEY: bytes = blake2b(keyword)[:32]
+    BOX = nacl.secret.SecretBox(KEY)
 
+    databases.download_gutenberg_database()
+    databases.download_enron_database()
+
+    if args.mode == "server":
         conn = databases.connect_db()
-        if args.delete:
+        if args.reset:
             console.log("Clearing database.")
             databases.reset_db(conn)
             databases.reset_db_count()
@@ -250,6 +252,17 @@ if __name__ == "__main__":
         w = Watcher("data/client/", MyHandler())
         w.run()
 
+    if args.mode == "repack":
+        conn = databases.connect_db()
+        new_keyword = bytes(args.newkey, "utf-8")
+        if new_keyword != keyword:
+            NEW_KEY: bytes = blake2b(keyword)[:32]
+            NEW_BOX = nacl.secret.SecretBox(KEY)
+            # Stuff here
+            keyword, KEY, BOX = new_keyword, NEW_KEY, NEW_BOX
+
+        console.log("Repack done.")
+
     if args.mode == "search":
         conn = databases.connect_db()
         query = args.query
@@ -258,4 +271,6 @@ if __name__ == "__main__":
         results = [search_word(conn, word) for word in words]
         results = [set(r) for r in results if r is not None]
         intersection = set.intersection(*results)
-        console.log(f"Intersection: {len(intersection)} matches : {intersection}")
+        if args.show:
+            console.log(intersection)
+        console.log(f"Intersection: {len(intersection)} matches.")
