@@ -4,16 +4,24 @@
 
 ## Installation
 
-Il faut un serveur PostgreSQL avec une base `mini-parsec` existante.
+Il faut une installation postgresql.
 
 Après clonage du repo :
 
 ```bash
 poetry install
+sudo -u postgres psql -c 'CREATE DATABASE "mini-parsec";'
 ```
 
-Note : Si besoin, remplacer `python -m` par `poetry run python -m` dans les commandes qui suivent.
+**Note :** Si besoin, remplacer `python -m` par `poetry run python -m` dans les commandes qui suivent.
 
+## Utilisation
+
+Avant toute chose :
+
+```bash
+sudo systemctl start postgresql
+```
 
 ### Datasets
 
@@ -24,6 +32,8 @@ python -m mini-parsec datasets
 ```
 
 ### Serveur
+
+Pour lancer le logiciel serveur, chiffré avec le mot-clé `KEYWORD` :
 
 ```Python
 python -m mini-parsec server --key [KEYWORD]
@@ -38,6 +48,8 @@ cp -r data/Enron/* data/client/
 ```
 
 ### Recherche
+
+Pour chercher le mot `WORD` dans un serveur chiffré avec le mot-clé `KEYWORD` :
 
 ```Python
 python -m mini-parsec search --key [KEYWORD] --query [WORD]
