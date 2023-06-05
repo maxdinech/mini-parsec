@@ -1,5 +1,7 @@
 # Mini-Parsec
 
+![Logo de Parsec](https://github.com/Scille/parsec-cloud/blob/master/docs/parsec_doc_logo.png)
+
 ## Utilisation
 
 Il faut un serveur PostgreSQL avec une base `mini-parsec` existante.
