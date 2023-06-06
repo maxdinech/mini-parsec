@@ -60,6 +60,21 @@ Pour chercher le mot `WORD` dans un serveur chiffré avec le mot-clé `KEYWORD` 
 python -m miniparsec search --key [KEYWORD] --query [WORD]
 ```
 
+Le flag `--show` permet d'afficher la liste des résultats.
+
+Pour une recherche multiple (par défaut en intersection) :
+
+**Intersection :**
+```Python
+python -m miniparsec search --key [KEYWORD] --query [WORD1+WORD2+WORD3]
+```
+
+**Union :**
+
+```Python
+python -m miniparsec search --key [KEYWORD] --query [WORD1+WORD2+WORD3] --union
+```
+
 ### Repack
 
 ```Python
