@@ -17,7 +17,7 @@ def main() -> None:
 
     dataset = subparsers.add_parser("dataset", help="Download datasets")
     dataset.add_argument("--all", help="Download all datasets", action="store_true")
-    parser.add_argument("-D", "--download", type=str, help="Dataset to download")
+    dataset.add_argument("-D", "--download", type=str, help="Dataset to download")
 
     search = subparsers.add_parser("search", help="Search words")
     search.add_argument("-K", "--key", type=str, help="search term", required=True)
