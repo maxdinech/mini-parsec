@@ -6,22 +6,40 @@ from miniparsec import databases, schemes
 from miniparsec.paths import CLIENT_ROOT
 from miniparsec.utils import console, datasets, timing, watcher
 
-if __name__ == "__main__":
+
+def main() -> None:
+    store = "store_true"
     parser = argparse.ArgumentParser(
         prog="Mini-Parsec",
-        description="Mini-Parsec : client et recherche.",
+        description="Mini-Parsec : serveur et recherche.",
     )
-    store = "store_true"
-    _ = parser.add_argument("mode", nargs="?", default="sync")
-    _ = parser.add_argument("-K", "--key", type=str, help="search term", required=True)
-    _ = parser.add_argument("-r-", "--reset", help="reset server", action=store)
-    _ = parser.add_argument("-s", "--show", help="show results", action=store)
-    _ = parser.add_argument("-q", "--query", type=str, help="search term", default="")
-    _ = parser.add_argument("-i", "--inter", help="query intersect", action=store)
-    _ = parser.add_argument("-u", "--union", help="query union", action=store)
-    _ = parser.add_argument("-K2", "--newkey", type=str, help="new key", default="")
+    subparsers = parser.add_subparsers(dest="command")
 
+    dataset = subparsers.add_parser("dataset", help="Download datasets")
+    dataset.add_argument("--all", help="Download all datasets", action="store_true")
+    parser.add_argument("-D", "--download", type=str, help="Dataset to download")
+
+    search = subparsers.add_parser("search", help="Search words")
+    search.add_argument("-K", "--key", type=str, help="search term", required=True)
+    search.add_argument("-q", "--query", type=str, help="search term", required=True)
+    search.add_argument("-i", "--inter", help="query intersect", action=store)
+    search.add_argument("-u", "--union", help="query union", action=store)
+    search.add_argument("-s", "--show", help="show results", action=store)
+
+    server = subparsers.add_parser("server", help="Mini-parsec server")
+    server.add_argument("-K", "--key", type=str, help="search term", required=True)
+    server.add_argument("-r-", "--reset", help="reset server", action=store)
+
+    repack = subparsers.add_parser("repack", help="Repack or re-encrypt.")
+    repack.add_argument("-K2", "--newkey", type=str, help="new key", default=None)
+
+    subparsers.required = True
     args = parser.parse_args()
+
+    if args.command == "dataset":
+        datasets.download_gutenberg_database()
+        datasets.download_enron_database()
+        return
 
     keyword: bytes = bytes(args.key, "utf-8")
     key: bytes = blake2b(keyword)[:32]
@@ -30,11 +48,7 @@ if __name__ == "__main__":
 
     scheme = schemes.PiBasPlus(key, conn)
 
-    match args.mode:
-        case "dataset":
-            datasets.download_gutenberg_database()
-            datasets.download_enron_database()
-
+    match args.command:
         case "server":
             conn = databases.connect_db()
             if args.reset:
@@ -47,11 +61,15 @@ if __name__ == "__main__":
 
         case "repack":
             conn = databases.connect_db()
-            new_keyword = bytes(args.newkey, "utf-8")
-            if new_keyword != keyword:
+            # Pas de nouvelle clé
+            if args.newkey is not None:
+                new_keyword = bytes(args.newkey, "utf-8")
                 new_key: bytes = blake2b(keyword)[:32]
-                # Stuff here
+                # TODO: Repack ici.
                 keyword, key = new_keyword, new_key
+            else:
+                # TODO: Repack ici.
+                pass
 
             console.log("Repack done.")
 
@@ -75,5 +93,6 @@ if __name__ == "__main__":
                 console.log(results)
             console.log(f"result: {len(results)} matches.")
 
-        case _:
-            console.log("Invalid mode.")
+
+if __name__ == "__main__":
+    main()
