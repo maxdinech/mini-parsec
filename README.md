@@ -28,15 +28,20 @@ sudo systemctl start postgresql
 Le téléchargement de deux datasets (Enron et Gutenberg) est automatisé par :
 
 ```Python
-python -m mini-parsec datasets
+python -m miniparsec datasets
 ```
+
+Deux datasets sont fournis :
+
+- **Enron :**
+- **Gutenberg :**
 
 ### Serveur
 
 Pour lancer le logiciel serveur, chiffré avec le mot-clé `KEYWORD` :
 
 ```Python
-python -m mini-parsec server --key [KEYWORD]
+python -m miniparsec server --key [KEYWORD]
 ```
 
 Le flag `--reset` permet de vider les BDD et d'effacer les données client et serveur.
@@ -52,18 +57,17 @@ cp -r data/Enron/* data/client/
 Pour chercher le mot `WORD` dans un serveur chiffré avec le mot-clé `KEYWORD` :
 
 ```Python
-python -m mini-parsec search --key [KEYWORD] --query [WORD]
+python -m miniparsec search --key [KEYWORD] --query [WORD]
 ```
 
 ### Repack
 
 ```Python
-python -m mini-parsec repack --key [KEYWORD]
+python -m miniparsec repack --key [KEYWORD]
 ```
 
 ### Re-chiffrement
 
 ```Python
-python -m mini-parsec repack --key [KEYWORD] --newkey [NEW KEYWORD]
+python -m miniparsec repack --key [KEYWORD] --newkey [NEW KEYWORD]
 ```
-
