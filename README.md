@@ -86,3 +86,7 @@ python -m miniparsec repack --key [KEYWORD]
 ```Python
 python -m miniparsec repack --key [KEYWORD] --newkey [NEW KEYWORD]
 ```
+
+# Sources et articles
+
+- [Cash et al. 2014], [Dynamic Searchable Encryption in Very-Large Databases: Data Structures and Implementation](https://eprint.iacr.org/2014/853.pdf)
