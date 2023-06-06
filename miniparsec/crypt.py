@@ -1,10 +1,13 @@
+import os
 import pickle
+from pathlib import Path
 
 import nacl.secret
 import nacl.utils
 from nacl.hash import blake2b
 
-from miniparsec.utils import console
+from miniparsec.paths import CLIENT_ROOT, SERVER_ROOT
+from miniparsec.utils import console, file
 
 
 def hmac(content: str | bytes, key: bytes = b"") -> bytes:
@@ -25,52 +28,68 @@ def decrypt(content: bytes, key: bytes) -> bytes:
     return box.decrypt(content)
 
 
-def encrypt_file(path: str, key: bytes) -> None:
+def encrypt_file(client_path: Path, key: bytes) -> None:
     box = nacl.secret.SecretBox(key)
-    dest_path = "data/server/" + path.split("client/")[-1]
+    server_path = file.get_server_path(client_path)
     try:
-        with open(path, "rb") as f:
+        with open(client_path, "rb") as f:
             encrypted = box.encrypt(f.read())
-            with open(dest_path, "wb") as ef:
+            with open(server_path, "wb") as ef:
                 ef.write(encrypted)
     except FileNotFoundError:
         console.log("File to encrypt not found.")
 
 
-def decrypt_file(path: str, key: bytes) -> None:
+def decrypt_file(server_path: Path, key: bytes, basename: str = "") -> None:
     box = nacl.secret.SecretBox(key)
-    dest_path = "data/client/" + path.split("server/")[-1]
+    client_path = file.get_client_path(server_path)
+    if basename:
+        client_path = file.rename(client_path, basename)
     try:
-        with open(path, "rb") as f:
+        with open(server_path, "rb") as f:
             decrypted = box.decrypt(f.read())
-            with open(dest_path, "wb") as ef:
-                ef.write(decrypted)
+            try:
+                with open(client_path, "wb") as ef:
+                    ef.write(decrypted)
+            except Exception as e:
+                console.error(e)
     except FileNotFoundError:
         console.log("File to decrypt not found.")
 
 
 def encrypt_dict_file(dictionnary: dict, filename: str, key: bytes) -> None:
     box = nacl.secret.SecretBox(key)
-    with open(f"data/client/{filename}.pkl", "wb") as f:
+    server_path = SERVER_ROOT / filename
+    client_path = CLIENT_ROOT / f"{filename}.pkl"
+
+    # Dump pickle
+    with open(client_path, "wb") as f:
         pickle.dump(dictionnary, f)
-    with open(f"data/client/{filename}.pkl", "rb") as f:
+
+    # Encrypt and upload file
+    with open(client_path, "rb") as f:
         dictionnary_file = box.encrypt(f.read())
-        with open(f"data/server/{filename}", "wb") as ef:
+        with open(server_path, "wb") as ef:
             ef.write(dictionnary_file)
 
 
 def decrypt_dict_file(filename: str, key: bytes) -> dict:
     box = nacl.secret.SecretBox(key)
+    server_path = SERVER_ROOT / filename
+    client_path = CLIENT_ROOT / f"{filename}.pkl"
+
+    # Download and decrypt file
     try:
-        with open(f"data/server/{filename}", "rb") as ef:
+        with open(server_path, "rb") as ef:
             dictionnary_file = box.decrypt(ef.read())
-            with open(f"data/client/{filename}.pkl", "wb") as f:
+            with open(client_path, "wb") as f:
                 f.write(dictionnary_file)
     except FileNotFoundError:
         console.error("Dict file not found.")
 
+    # Read pickle
     try:
-        with open("data/client/db_count.pkl", "rb") as f:
+        with open(client_path, "rb") as f:
             dictionnary = pickle.load(f)
     except FileNotFoundError:
         dictionnary = {}

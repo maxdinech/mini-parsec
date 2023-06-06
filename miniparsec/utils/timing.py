@@ -8,7 +8,7 @@ from typing import Any
 from . import console
 
 
-def timing(function: Callable) -> Any:
+def timing(function: Callable, verbose: bool = True) -> Any:
     """Décorateur obtenir les durées d'exécution de fonctions."""
 
     @wraps(function)
@@ -18,8 +18,12 @@ def timing(function: Callable) -> Any:
         time_end = time()
         duration = time_end - time_start
         console.timing(
-            f"function [bold]{function.__name__}[/bold] took {duration:.3f} seconds."
+            f"function [bold]{function.__name__}[/bold] took {duration:.3f} seconds.",
+            verbose=verbose,
         )
-        return result
+        if result is not None:
+            return duration, result
+        else:
+            return duration
 
     return wrap

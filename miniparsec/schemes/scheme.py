@@ -1,10 +1,12 @@
-import time
+import os
+from pathlib import Path
 
 from psycopg import Connection
 
 from miniparsec import crypt
+from miniparsec.paths import CLIENT_ROOT, SERVER_ROOT
 from miniparsec.tokens import Token
-from miniparsec.utils import folder
+from miniparsec.utils import console, file, folder, timing
 
 
 class Scheme:
@@ -14,15 +16,20 @@ class Scheme:
         self.protected_filenames: set[str]
 
     def reset(self) -> None:
-        folder.empty("data/client")
-        folder.empty("data/server")
+        folder.empty(CLIENT_ROOT)
+        folder.empty(SERVER_ROOT)
 
     def tokenize(self, word: str) -> Token:
         del word
         return Token()
 
-    def add_token(self, token: Token) -> None:
-        del token
+    def add_token(self, token: Token, client_path: Path) -> None:
+        del token, client_path
+        pass
+
+    def remove_token(self, token: Token, client_path: Path) -> None:
+        del token, client_path
+        console.log("No token removal method yet.")
         pass
 
     def search_token(self, token: Token) -> set[str]:
@@ -33,9 +40,13 @@ class Scheme:
         token = self.tokenize(word)
         return self.search_token(token)
 
-    def add_word(self, word: str) -> None:
+    def add_word(self, word: str, client_path: Path) -> None:
         token = self.tokenize(word)
-        self.add_token(token)
+        self.add_token(token, client_path)
+
+    def remove_word(self, word: str, client_path: Path) -> None:
+        token = self.tokenize(word)
+        self.remove_token(token, client_path)
 
     def search_intersection(self, words: list[str]) -> set[str]:
         sets = [self.search_word(word) for word in words]
@@ -45,15 +56,25 @@ class Scheme:
         sets = [self.search_word(word) for word in words]
         return set.union(*sets)
 
-    def add_file_words(self, file_path: str) -> None:
-        del file_path
+    def add_file_words(self, client_path: Path) -> None:
+        del client_path
         pass
 
-    def add_file(self, file_path: str) -> tuple[float, float]:
-        t0 = time.time()
-        crypt.encrypt_file(file_path, self.key)
-        delta1 = time.time() - t0
-        t0 = time.time()
-        self.add_file_words(file_path)
-        delta2 = time.time() - t0
-        return delta1, delta2
+    def remove_file_words(self, client_path: Path) -> None:
+        del client_path
+        pass
+
+    def add_file(self, client_path: Path) -> tuple[float, float]:
+        t1 = timing.timing(crypt.encrypt_file, verbose=False)(client_path, self.key)
+        t2 = timing.timing(self.add_file_words, verbose=False)(client_path)
+        return t1, t2
+
+    def remove_file(self, client_path: Path):
+        server_path = file.get_server_path(client_path)
+        temp_basename = f"temp_{client_path.name}"
+
+        crypt.decrypt_file(server_path, self.key, temp_basename)
+        temp_client_path = file.rename(client_path, temp_basename)
+        self.remove_file_words(temp_client_path)
+        # file.delete(temp_client_path)
+        # file.delete(server_path)

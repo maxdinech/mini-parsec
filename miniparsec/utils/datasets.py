@@ -3,10 +3,9 @@ import tarfile
 import zipfile
 
 import requests
-from rich.console import Console
 from tqdm import tqdm
 
-console = Console()
+from . import console
 
 
 def download_gutenberg_database(size: str = "357MB"):

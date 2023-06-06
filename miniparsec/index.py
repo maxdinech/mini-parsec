@@ -1,7 +1,8 @@
 import re
+from pathlib import Path
 
 
-def file_index(path: str, min_length: int = 2) -> tuple[set[str], int]:
+def file_index(path: Path, min_length: int = 2) -> tuple[set[str], int]:
     word_count = 0
     index = set()
     with open(path, "r", encoding="utf-8") as f:

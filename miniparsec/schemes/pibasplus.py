@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from nacl.hash import blake2b
 from psycopg import Connection, sql
 
@@ -49,34 +51,34 @@ class PiBasPlus(Scheme):
                 count += 1
         return result
 
-    def add_word_helper(self, word: str, count: int, file_path: str) -> None:
+    def add_word_helper(self, word: str, count: int, file_path: Path) -> None:
         cursor = self.conn.cursor()
         token = self.tokenize(word)
 
         query = sql.SQL("INSERT INTO {} VALUES (%s, %s)").format(sql.Identifier("edb2"))
 
         entry_key = crypt.hmac(str(count), key=token.k1)
-        entry_value = crypt.encrypt(file_path, key=token.k2)
+        entry_value = crypt.encrypt(str(file_path), key=token.k2)
         data = (entry_key, entry_value)
 
         cursor.execute(query, data)
 
-    def add_word(self, word: str, file_path: str) -> None:
+    def add_word(self, word: str, client_path: Path) -> None:
         db_count = crypt.decrypt_dict_file("db_count", self.key)
         count = db_count.get(word, 0)
 
-        self.add_word_helper(word, count, file_path)
+        self.add_word_helper(word, count, client_path)
 
         db_count[word] = count + 1
         crypt.encrypt_dict_file(db_count, "db_count", self.key)
 
-    def add_file_words(self, file_path: str) -> None:
+    def add_file_words(self, client_path: Path) -> None:
         db_count = crypt.decrypt_dict_file("db_count", self.key)
-        file_index, word_count = index.file_index(file_path)
+        file_index, word_count = index.file_index(client_path)
 
         for word in file_index:
             count = db_count.get(word, 0)
-            self.add_word_helper(word, count, file_path)
+            self.add_word_helper(word, count, client_path)
             db_count[word] = count + 1
         self.conn.commit()
         console.log(

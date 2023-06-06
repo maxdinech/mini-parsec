@@ -3,7 +3,8 @@ import argparse
 from nacl.hash import blake2b
 
 from miniparsec import databases, schemes
-from miniparsec.utils import console, datasets, watcher
+from miniparsec.paths import CLIENT_ROOT
+from miniparsec.utils import console, datasets, timing, watcher
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -41,7 +42,7 @@ if __name__ == "__main__":
                 console.log("Creating databases...")
                 scheme.reset()
 
-            w = watcher.Watcher("data/client/", watcher.MyHandler(scheme))
+            w = watcher.Watcher(CLIENT_ROOT, watcher.MyHandler(scheme))
             w.run()
 
         case "repack":
@@ -60,12 +61,13 @@ if __name__ == "__main__":
             words = query.split("+")
             words = [word.lower() for word in words]
             if len(words) == 1:
-                results = scheme.search_word(words[0])
+                word = words[0]
+                _, results = timing.timing(scheme.search_word)(word)
             elif len(words) > 1:
                 if args.union:
-                    results = scheme.search_union(words)
+                    _, results = timing.timing(scheme.search_union)(words)
                 else:
-                    results = scheme.search_intersection(words)
+                    _, results = timing.timing(scheme.search_intersection)(words)
             else:
                 console.error("No words provided.")
                 results = set()

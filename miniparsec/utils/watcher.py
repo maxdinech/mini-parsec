@@ -1,11 +1,13 @@
 import os
 import time
+from pathlib import Path
 
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
+from miniparsec import paths
 from miniparsec.schemes import Scheme
-from miniparsec.utils import console
+from miniparsec.utils import console, file
 
 
 class Watcher:
@@ -33,21 +35,29 @@ class MyHandler(FileSystemEventHandler):
         self.scheme: Scheme = scheme
 
     def on_any_event(self, event):
-        if event.event_type == "created":
-            path = event.src_path
-            if event.is_directory:
-                server_path = "data/server/" + path.split("client/")[-1]
-                try:
-                    os.mkdir(server_path)
-                except FileExistsError:
-                    pass
-            else:
-                filename = path.split("/")[-1]
-                if filename not in self.scheme.protected_filenames:
-                    console.log(f"Adding file '{path}'")
+        match event.event_type:
+            case "created":
+                client_path = Path(event.src_path)
+                if event.is_directory:
+                    server_path = file.get_server_path(client_path)
                     try:
-                        t1, t2 = self.scheme.add_file(path)
-                    except UnicodeDecodeError:
-                        console.log(f"Error: Failed to decode file {path}")
-                    else:
-                        console.log(f"Encryption: {t1:.2f}s, indexing: {t2:.2f}s\n")
+                        os.mkdir(server_path)
+                    except FileExistsError:
+                        pass
+                else:
+                    basename = client_path.name
+                    is_tempfile = basename[:5] == "temp_"
+                    is_protected = basename in self.scheme.protected_filenames
+                    if not is_protected and not is_tempfile:
+                        console.log(f"File '{client_path}' added by user.")
+                        try:
+                            t1, t2 = self.scheme.add_file(client_path)
+                        except UnicodeDecodeError:
+                            console.error(f"Failed to decode file {client_path}")
+                        else:
+                            console.log(f"Encryption: {t1:.2f}s, indexing: {t2:.2f}s\n")
+
+            case "deleted":
+                file_path = event.src_path
+                console.log(f"File '{file_path}' deleted by user.")
+                _ = self.scheme.remove_file(file_path)

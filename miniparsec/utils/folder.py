@@ -1,10 +1,11 @@
 import os
 import shutil
+from pathlib import Path
 
 from miniparsec.utils import console
 
 
-def create(folder_path: str, verbose: bool = True) -> None:
+def create(folder_path: Path, verbose: bool = True) -> None:
     try:
         os.mkdir(folder_path)
     except FileExistsError:
@@ -13,7 +14,7 @@ def create(folder_path: str, verbose: bool = True) -> None:
         console.log(f"Folder '{folder_path}' created.", verbose=verbose)
 
 
-def delete(folder_path: str, verbose: bool = True) -> None:
+def delete(folder_path: Path, verbose: bool = True) -> None:
     try:
         shutil.rmtree(folder_path)
     except FileNotFoundError:
@@ -22,7 +23,7 @@ def delete(folder_path: str, verbose: bool = True) -> None:
         console.log(f"Folder '{folder_path}' deleted.", verbose=verbose)
 
 
-def empty(folder_path: str, verbose: bool = True) -> None:
+def empty(folder_path: Path, verbose: bool = True) -> None:
     delete(folder_path, verbose=False)
     create(folder_path, verbose=False)
     if verbose:
