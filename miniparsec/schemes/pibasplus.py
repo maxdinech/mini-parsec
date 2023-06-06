@@ -72,7 +72,7 @@ class PiBasPlus(Scheme):
         db_count[word] = count + 1
         crypt.encrypt_dict_file(db_count, "db_count", self.key)
 
-    def add_file_words(self, client_path: Path) -> None:
+    def add_file_words(self, client_path: Path) -> int:
         db_count = crypt.decrypt_dict_file("db_count", self.key)
         file_index, word_count = index.file_index(client_path)
 
@@ -86,5 +86,6 @@ class PiBasPlus(Scheme):
             f"Unique words : {len(file_index):6,d}, "
             f"DB_count : {len(db_count):6,d}."
         )
-
         crypt.encrypt_dict_file(db_count, "db_count", self.key)
+
+        return len(file_index)

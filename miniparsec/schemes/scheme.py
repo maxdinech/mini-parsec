@@ -56,18 +56,18 @@ class Scheme:
         sets = [self.search_word(word) for word in words]
         return set.union(*sets)
 
-    def add_file_words(self, client_path: Path) -> None:
+    def add_file_words(self, client_path: Path) -> int:
         del client_path
-        pass
+        return 0
 
     def remove_file_words(self, client_path: Path) -> None:
         del client_path
         pass
 
-    def add_file(self, client_path: Path) -> tuple[float, float]:
+    def add_file(self, client_path: Path) -> tuple[int, float, float]:
         t1 = timing.timing(crypt.encrypt_file, verbose=False)(client_path, self.key)
-        t2 = timing.timing(self.add_file_words, verbose=False)(client_path)
-        return t1, t2
+        t2, count = timing.timing(self.add_file_words, verbose=False)(client_path)
+        return t1, t2, count
 
     def remove_file(self, client_path: Path):
         server_path = file.get_server_path(client_path)

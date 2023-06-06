@@ -33,6 +33,7 @@ class Watcher:
 class MyHandler(FileSystemEventHandler):
     def __init__(self, scheme: Scheme) -> None:
         self.scheme: Scheme = scheme
+        self.stats: dict = {"files": 0, "words": 0, "encrypt": 0.0, "index": 0.0}
 
     def on_any_event(self, event):
         match event.event_type:
@@ -51,11 +52,24 @@ class MyHandler(FileSystemEventHandler):
                     if not is_protected and not is_tempfile:
                         console.log(f"File '{client_path}' added by user.")
                         try:
-                            t1, t2 = self.scheme.add_file(client_path)
+                            t1, t2, count = self.scheme.add_file(client_path)
                         except UnicodeDecodeError:
                             console.error(f"Failed to decode file {client_path}")
                         else:
-                            console.log(f"Encryption: {t1:.2f}s, indexing: {t2:.2f}s\n")
+                            console.log(
+                                f"Encryption: {t1:.2f}s, indexing {count} words: {t2:.2f}s"
+                            )
+                            self.stats["files"] = self.stats["files"] + 1
+                            self.stats["words"] = self.stats["words"] + count
+                            self.stats["encrypt"] = self.stats["encrypt"] + t1
+                            self.stats["index"] = self.stats["index"] + t2
+                            console.log(
+                                "STATS : "
+                                f"Added {self.stats['files']} files, "
+                                f"Indexed {self.stats['words']} words, "
+                                f"Encryption: {self.stats['encrypt']:.2f} seconds, "
+                                f"Indexing: {self.stats['index']:.2f} seconds.\n"
+                            )
 
             case "deleted":
                 file_path = event.src_path
