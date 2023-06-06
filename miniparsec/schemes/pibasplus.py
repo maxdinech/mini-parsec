@@ -2,27 +2,22 @@ from pathlib import Path
 
 from psycopg import Connection, sql
 
-from miniparsec import crypt, databases, index
+from miniparsec import crypt, index
+from miniparsec.paths import CLIENT_ROOT
 from miniparsec.tokens import PiToken
 from miniparsec.utils import console
 
-from .scheme import Scheme
+from .pibas import PiBas
 
 
-class PiBasPlus(Scheme):
+class PiBasPlus(PiBas):
     def __init__(self, key: bytes, conn: Connection) -> None:
         super().__init__(key, conn)
+        self.tables_names = ("edb", "edb2")
         self.protected_filenames = {"db_count.pkl"}
 
     def reset(self):
         super().reset()
-        table_names = ("edb", "edb2")
-        for table_name in table_names:
-            databases.drop_table(self.conn, table_name)
-            databases.create_table(
-                self.conn, table_name, {"token": "bytea", "file": "bytea"}
-            )
-            databases.create_index(self.conn, table_name)
 
     def tokenize(self, word: str) -> PiToken:
         return PiToken(
@@ -31,24 +26,7 @@ class PiBasPlus(Scheme):
         )
 
     def search_token(self, token: PiToken) -> set[str]:
-        cursor = self.conn.cursor()
-        result = set()
-        for table_name in ("edb", "edb2"):
-            count = 0
-            while True:
-                query = sql.SQL("SELECT file FROM {} WHERE token = %s;").format(
-                    sql.Identifier(table_name)
-                )
-                query_key = crypt.hmac(str(count), token.k1)
-                data = (query_key,)
-                cursor.execute(query, data)
-                fetchone = cursor.fetchone()
-                if fetchone is None:
-                    break
-                path = crypt.decrypt(fetchone[0], key=token.k2)
-                result.add(str(path))
-                count += 1
-        return result
+        return super().search_token(token)
 
     def add_word_helper(self, word: str, count: int, file_path: Path) -> None:
         cursor = self.conn.cursor()
@@ -57,7 +35,8 @@ class PiBasPlus(Scheme):
         query = sql.SQL("INSERT INTO {} VALUES (%s, %s)").format(sql.Identifier("edb2"))
 
         entry_key = crypt.hmac(str(count), key=token.k1)
-        entry_value = crypt.encrypt(str(file_path), key=token.k2)
+        path_str = str(file_path.relative_to(CLIENT_ROOT))
+        entry_value = crypt.encrypt(path_str, key=token.k2)
         data = (entry_key, entry_value)
 
         cursor.execute(query, data)

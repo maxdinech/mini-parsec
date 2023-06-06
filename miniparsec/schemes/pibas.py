@@ -1,6 +1,3 @@
-import nacl.secret
-import nacl.utils
-from nacl.hash import blake2b
 from psycopg import Connection, sql
 
 from miniparsec import crypt, databases
@@ -12,14 +9,16 @@ from .scheme import Scheme
 class PiBas(Scheme):
     def __init__(self, key: bytes, conn: Connection) -> None:
         super().__init__(key, conn)
+        self.tables_names = ("edb",)
 
     def reset(self):
-        table_names = ("edb", "edb2")
-        for table_name in table_names:
+        super().reset()
+        for table_name in self.tables_names:
             databases.drop_table(self.conn, table_name)
             databases.create_table(
                 self.conn, table_name, {"token": "bytea", "file": "bytea"}
             )
+            databases.create_index(self.conn, table_name)
 
     def tokenize(self, word: str) -> PiToken:
         return PiToken(
@@ -30,9 +29,7 @@ class PiBas(Scheme):
     def search_token(self, token: PiToken) -> set[str]:
         cursor = self.conn.cursor()
         result = set()
-        for table_name in ("edb", "edb2"):
-            local_key = blake2b(token.k2)[:32]
-            local_box = nacl.secret.SecretBox(local_key)
+        for table_name in self.tables_names:
             count = 0
             while True:
                 query = sql.SQL("SELECT file FROM {} WHERE token = %s;").format(
@@ -44,7 +41,7 @@ class PiBas(Scheme):
                 fetchone = cursor.fetchone()
                 if fetchone is None:
                     break
-                path = local_box.decrypt(fetchone[0]).decode("utf-8")
-                result.add(path)
+                path = crypt.decrypt(fetchone[0], key=token.k2)
+                result.add(str(path))
                 count += 1
         return result
