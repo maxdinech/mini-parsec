@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "Test SSE"
 authors = ["Maximilien de Dinechin <m.dinechin@protonmail.com>"]
 readme = "README.md"
-packages = [{include = "mini_parsec"}]
+packages = [{include = "miniparsec"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
