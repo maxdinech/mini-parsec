@@ -2,9 +2,9 @@
 
 ![Logo de Parsec](https://github.com/Scille/parsec-cloud/blob/master/docs/parsec_doc_logo.png)
 
-## Installation
+### `Installation et utilisation`
 
-Il faut une installation postgresql.
+Il faut une installation postgresql, avec une base `mini-parsec`.
 
 Après clonage du repo :
 
@@ -15,15 +15,7 @@ sudo -u postgres psql -c 'CREATE DATABASE "mini-parsec";'
 
 **Note :** Si besoin, remplacer `python -m` par `poetry run python -m` dans les commandes qui suivent.
 
-## Utilisation
-
-Avant toute chose :
-
-```bash
-sudo systemctl start postgresql
-```
-
-### Datasets
+### `Datasets`
 
 Le téléchargement de deux datasets (Enron et Gutenberg) est automatisé par :
 
@@ -33,12 +25,16 @@ python -m miniparsec datasets
 
 Deux datasets sont fournis :
 
-- **Enron :**
-- **Gutenberg :**
+- **Enron :** 500.000 emails courts,
+- **Gutenberg :** Quelques centaines de gros fichiers texte (livres).
 
-### Serveur
+### `Serveur`
 
 Pour lancer le logiciel serveur, chiffré avec le mot-clé `KEYWORD` :
+
+```bash
+sudo systemctl start postgresql
+```
 
 ```Python
 python -m miniparsec server --key [KEYWORD]
@@ -52,7 +48,7 @@ Quand le script affiche `Watching folder data/client/`, on peut lancer des copie
 cp -r data/Enron/* data/client/
 ```
 
-### Recherche
+### `Recherche`
 
 Pour chercher le mot `WORD` dans un serveur chiffré avec le mot-clé `KEYWORD` :
 
@@ -64,7 +60,7 @@ Le flag `--show` permet d'afficher la liste des résultats.
 
 Pour une recherche multiple (par défaut en intersection) :
 
-**Intersection :**
+**Intersection**
 ```Python
 python -m miniparsec search --key [KEYWORD] --query [WORD1+WORD2+WORD3]
 ```
@@ -75,18 +71,20 @@ python -m miniparsec search --key [KEYWORD] --query [WORD1+WORD2+WORD3]
 python -m miniparsec search --key [KEYWORD] --query [WORD1+WORD2+WORD3] --union
 ```
 
-### Repack
+### `Repack`
 
 ```Python
 python -m miniparsec repack --key [KEYWORD]
 ```
 
-### Re-chiffrement
+### `Re-chiffrement`
+
+**Note :** Pas encore fonctionnel.
 
 ```Python
 python -m miniparsec repack --key [KEYWORD] --newkey [NEW KEYWORD]
 ```
 
-# Sources et articles
+## Sources et articles
 
 - [Cash et al. 2014], [Dynamic Searchable Encryption in Very-Large Databases: Data Structures and Implementation](https://eprint.iacr.org/2014/853.pdf)
