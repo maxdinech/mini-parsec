@@ -1,6 +1,5 @@
 from pathlib import Path
 
-from nacl.hash import blake2b
 from psycopg import Connection, sql
 
 from miniparsec import crypt, databases, index
@@ -47,7 +46,7 @@ class PiBasPlus(Scheme):
                 if fetchone is None:
                     break
                 path = crypt.decrypt(fetchone[0], key=token.k2)
-                result.add(path)
+                result.add(str(path))
                 count += 1
         return result
 

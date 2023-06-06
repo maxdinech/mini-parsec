@@ -5,7 +5,6 @@ from pathlib import Path
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-from miniparsec import paths
 from miniparsec.schemes import Scheme
 from miniparsec.utils import console, file
 
