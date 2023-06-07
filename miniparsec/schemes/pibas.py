@@ -26,10 +26,21 @@ class PiBas(Scheme):
             crypt.hmac(f"2{word}", self.key),
         )
 
-    def search_token(self, token: PiToken, table_name: str, max_count=None) -> set[str]:
+    def search_token(
+        self,
+        token: PiToken,
+        table_name: str,
+        count: int = 0,
+        max_count: int | None = None,
+    ) -> set[str]:
         cursor = self.conn.cursor()
         result = set()
-        count = 0
+
+        # Pour une seule query
+        if count:
+            max_count = count + 1
+
+        # Tant au'on ne dépasse pas `max_count` ou que Postgres ne renvoie pas None
         while max_count is None or count < max_count:
             query = sql.SQL("SELECT file FROM {} WHERE token = %s;").format(
                 sql.Identifier(table_name)
@@ -40,7 +51,16 @@ class PiBas(Scheme):
             fetchone = cursor.fetchone()
             if fetchone is None:
                 break
+
             path = crypt.decrypt(fetchone[0], key=token.k2).decode("utf-8")
-            result.add(path)
+            try:
+                paths = eval(path)
+            except Exception:
+                result.add(path)
+            else:
+                if isinstance(paths, set):
+                    result.update(paths)
+                else:
+                    result.add(path)
             count += 1
         return result

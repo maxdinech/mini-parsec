@@ -4,6 +4,7 @@ from . import scheme
 from .pibas import PiBas
 from .pibasdyn import PiBasDyn
 from .pibasplus import PiBasPlus
+from .pipackplus import PiPackPlus
 from .scheme import Scheme
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "PiBas",
     "PiBasDyn",
     "PiBasPlus",
+    "PiPackPlus",
 ]

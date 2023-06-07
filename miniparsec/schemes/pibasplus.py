@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from psycopg import Connection, sql
-from rich.progress import Progress, track
+from rich.progress import Progress
 
 from miniparsec import crypt, databases, index
 from miniparsec.paths import CLIENT_ROOT
@@ -25,9 +25,6 @@ class PiBasPlus(PiBas):
             crypt.hmac(f"{prefix}1{word}", self.key),
             crypt.hmac(f"{prefix}2{word}", self.key),
         )
-
-    def search_token(self, token: PiToken, table_name: str, max_count=None) -> set[str]:
-        return super().search_token(token, table_name, max_count)
 
     def search_word(self, word: str) -> set[str]:
         results = set()
@@ -82,7 +79,7 @@ class PiBasPlus(PiBas):
 
         return len(file_index)
 
-    def merge(self, newkey: bytes | None = None) -> None:
+    def merge(self) -> None:
         """Fusion de EDB et EDB2."""
         edb_count: dict[str, int] = crypt.decrypt_pickle("edb_count", self.key, {})
         edb2_count: dict[str, int] = crypt.decrypt_pickle("edb2_count", self.key, {})
@@ -92,7 +89,7 @@ class PiBasPlus(PiBas):
 
         with Progress() as progress:
             total = sum(edb2_count.values())
-            load_words = progress.add_task("Loading words...", total=total)
+            load_words = progress.add_task("Loading EDB2 words...", total=total)
 
             for word in edb2_count:
                 edb2_token = self.tokenize(word, prefix="edb2")
@@ -103,7 +100,7 @@ class PiBasPlus(PiBas):
                 progress.update(load_words, advance=edb2_count[word])
 
             total = sum(len(v) for v in new_data.values())
-            add_words = progress.add_task("Adding words...", total=total)
+            add_words = progress.add_task("Adding words to EDB...", total=total)
 
             for word in new_data:
                 count = edb_count.get(word, 0)

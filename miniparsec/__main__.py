@@ -30,9 +30,9 @@ def main() -> None:
     server.add_argument("-K", "--key", type=str, help="search term", required=True)
     server.add_argument("-r", "--reset", help="reset server", action=store)
 
-    repack = subparsers.add_parser("repack", help="Repack or re-encrypt.")
-    repack.add_argument("-K", "--key", type=str, help="search term", required=True)
-    repack.add_argument("-K2", "--newkey", type=str, help="new key", default=None)
+    merge = subparsers.add_parser("merge", help="merge or re-encrypt.")
+    merge.add_argument("-K", "--key", type=str, help="search term", required=True)
+    merge.add_argument("-K2", "--newkey", type=str, help="new key", default=None)
 
     subparsers.required = True
     args = parser.parse_args()
@@ -47,7 +47,7 @@ def main() -> None:
 
     conn = databases.connect_db()
 
-    scheme = schemes.PiBasPlus(key, conn)
+    scheme = schemes.PiPackPlus(key, conn, 16)
 
     match args.command:
         case "server":
@@ -60,7 +60,7 @@ def main() -> None:
             w = watcher.Watcher(CLIENT_ROOT, watcher.MyHandler(scheme))
             w.run()
 
-        case "repack":
+        case "merge":
             conn = databases.connect_db()
             # Pas de nouvelle clé
             if args.newkey is None:
@@ -68,7 +68,7 @@ def main() -> None:
             else:
                 pass
 
-            console.log("Repack done.")
+            console.log("merge done.")
 
         case "search":
             conn = databases.connect_db()
