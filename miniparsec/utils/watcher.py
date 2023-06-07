@@ -8,6 +8,8 @@ from watchdog.observers import Observer
 from miniparsec.schemes import Scheme
 from miniparsec.utils import console, file
 
+from . import timing
+
 
 class Watcher:
     def __init__(self, directory, handler):
@@ -32,7 +34,13 @@ class Watcher:
 class MyHandler(FileSystemEventHandler):
     def __init__(self, scheme: Scheme) -> None:
         self.scheme: Scheme = scheme
-        self.stats: dict = {"files": 0, "words": 0, "encrypt": 0.0, "index": 0.0}
+        self.stats: dict = {
+            "files": 0,
+            "words": 0,
+            "encrypt": 0.0,
+            "index": 0.0,
+            "merge": 0.0,
+        }
 
     def on_any_event(self, event):
         match event.event_type:
@@ -49,25 +57,38 @@ class MyHandler(FileSystemEventHandler):
                     is_tempfile = basename[:5] == "temp_"
                     is_protected = basename in self.scheme.protected_filenames
                     if not is_protected and not is_tempfile:
-                        console.log(f"File '{client_path}' added by user.")
+                        verbose = self.stats["files"] % 10 == 9
+                        console.log(
+                            f"File '{client_path}' added by user.", verbose=verbose
+                        )
                         try:
-                            t1, t2, count = self.scheme.add_file(client_path)
+                            t1, t2, count = self.scheme.add_file(
+                                client_path, verbose=verbose
+                            )
                         except UnicodeDecodeError:
                             console.error(f"Failed to decode file {client_path}")
                         else:
                             console.log(
-                                f"Encryption: {t1:.2f}s, indexing {count} words: {t2:.2f}s"
+                                f"Encryption: {t1:.2f}s, indexing {count} words: {t2:.2f}s",
+                                verbose=verbose,
                             )
                             self.stats["files"] = self.stats["files"] + 1
                             self.stats["words"] = self.stats["words"] + count
                             self.stats["encrypt"] = self.stats["encrypt"] + t1
                             self.stats["index"] = self.stats["index"] + t2
+
+                            # if self.stats["files"] % 1000 == 0:
+                            #     t = timing.timing(self.scheme.merge)()
+                            #     self.stats["merge"] += t
+
                             console.log(
                                 "STATS : "
                                 f"Added {self.stats['files']} files, "
                                 f"Indexed {self.stats['words']} words, "
                                 f"Encryption: {self.stats['encrypt']:.2f} seconds, "
-                                f"Indexing: {self.stats['index']:.2f} seconds.\n"
+                                f"Indexing: {self.stats['index']:.2f} seconds, "
+                                f"Merging: {self.stats['merge']:.2f} seconds.\n",
+                                verbose=verbose,
                             )
 
             case "deleted":
