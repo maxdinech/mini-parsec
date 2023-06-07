@@ -28,9 +28,10 @@ def main() -> None:
 
     server = subparsers.add_parser("server", help="Mini-parsec server")
     server.add_argument("-K", "--key", type=str, help="search term", required=True)
-    server.add_argument("-r-", "--reset", help="reset server", action=store)
+    server.add_argument("-r", "--reset", help="reset server", action=store)
 
     repack = subparsers.add_parser("repack", help="Repack or re-encrypt.")
+    repack.add_argument("-K", "--key", type=str, help="search term", required=True)
     repack.add_argument("-K2", "--newkey", type=str, help="new key", default=None)
 
     subparsers.required = True
@@ -62,13 +63,9 @@ def main() -> None:
         case "repack":
             conn = databases.connect_db()
             # Pas de nouvelle clé
-            if args.newkey is not None:
-                new_keyword = bytes(args.newkey, "utf-8")
-                new_key: bytes = blake2b(keyword)[:32]
-                # TODO: Repack ici.
-                keyword, key = new_keyword, new_key
+            if args.newkey is None:
+                _ = timing.timing(scheme.merge)()
             else:
-                # TODO: Repack ici.
                 pass
 
             console.log("Repack done.")
