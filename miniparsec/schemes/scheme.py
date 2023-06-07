@@ -13,6 +13,7 @@ class Scheme:
         self.conn: Connection = conn
         self.key: bytes = key
         self.protected_filenames: set[str]
+        self.table_names: tuple[str]
 
     def reset(self) -> None:
         folder.empty(CLIENT_ROOT)
@@ -55,17 +56,19 @@ class Scheme:
         sets = [self.search_word(word) for word in words]
         return set.union(*sets)
 
-    def add_file_words(self, client_path: Path) -> int:
-        del client_path
+    def add_file_words(self, client_path: Path, verbose=True) -> int:
+        del client_path, verbose
         return 0
 
     def remove_file_words(self, client_path: Path) -> None:
         del client_path
         pass
 
-    def add_file(self, client_path: Path) -> tuple[int, float, float]:
+    def add_file(self, client_path: Path, verbose=True) -> tuple[int, float, float]:
         t1 = timing.timing(crypt.encrypt_file, verbose=False)(client_path, self.key)
-        t2, count = timing.timing(self.add_file_words, verbose=False)(client_path)
+        t2, count = timing.timing(self.add_file_words, verbose=False)(
+            client_path, verbose=verbose
+        )
         return t1, t2, count
 
     def remove_file(self, client_path: Path):
@@ -77,3 +80,6 @@ class Scheme:
         self.remove_file_words(temp_client_path)
         # file.delete(temp_client_path)
         # file.delete(server_path)
+
+    def merge(self) -> None:
+        pass

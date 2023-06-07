@@ -26,22 +26,21 @@ class PiBas(Scheme):
             crypt.hmac(f"2{word}", self.key),
         )
 
-    def search_token(self, token: PiToken) -> set[str]:
+    def search_token(self, token: PiToken, table_name: str, max_count=None) -> set[str]:
         cursor = self.conn.cursor()
         result = set()
-        for table_name in self.tables_names:
-            count = 0
-            while True:
-                query = sql.SQL("SELECT file FROM {} WHERE token = %s;").format(
-                    sql.Identifier(table_name)
-                )
-                query_key = crypt.hmac(str(count), token.k1)
-                data = (query_key,)
-                cursor.execute(query, data)
-                fetchone = cursor.fetchone()
-                if fetchone is None:
-                    break
-                path = crypt.decrypt(fetchone[0], key=token.k2)
-                result.add(str(path))
-                count += 1
+        count = 0
+        while max_count is None or count < max_count:
+            query = sql.SQL("SELECT file FROM {} WHERE token = %s;").format(
+                sql.Identifier(table_name)
+            )
+            query_key = crypt.hmac(str(count), token.k1)
+            data = (query_key,)
+            cursor.execute(query, data)
+            fetchone = cursor.fetchone()
+            if fetchone is None:
+                break
+            path = crypt.decrypt(fetchone[0], key=token.k2).decode("utf-8")
+            result.add(path)
+            count += 1
         return result
