@@ -38,6 +38,19 @@ def create_table(conn: Connection, table_name: str, columns: dict[str, str]) -> 
     conn.commit()
 
 
+def truncate_table(conn: Connection, table_name: str) -> None:
+    cursor = conn.cursor()
+    query = sql.SQL("TRUNCATE TABLE {}").format(sql.Identifier(table_name))
+    try:
+        cursor.execute(query)
+    except psycopg.errors.UndefinedTable:
+        conn.rollback()
+        console.warning(f"Tried to truncate nonexistent table '{table_name}'.")
+    else:
+        console.log(f"Table '{table_name}' truncated.")
+    conn.commit()
+
+
 def create_index(conn: Connection, table_name: str) -> None:
     cursor = conn.cursor()
     query = sql.SQL("CREATE INDEX {} ON {}(token);").format(
