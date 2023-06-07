@@ -1,5 +1,6 @@
 import pickle
 from pathlib import Path
+from typing import Any
 
 import nacl.secret
 import nacl.utils
@@ -56,23 +57,23 @@ def decrypt_file(server_path: Path, key: bytes, basename: str = "") -> None:
         console.log("File to decrypt not found.")
 
 
-def encrypt_dict_file(dictionnary: dict, filename: str, key: bytes) -> None:
+def encrypt_pickle(pickle_file: Any, filename: str, key: bytes) -> None:
     box = nacl.secret.SecretBox(key)
     server_path = SERVER_ROOT / filename
     client_path = CLIENT_ROOT / f"{filename}.pkl"
 
     # Dump pickle
     with open(client_path, "wb") as f:
-        pickle.dump(dictionnary, f)
+        pickle.dump(pickle_file, f)
 
     # Encrypt and upload file
     with open(client_path, "rb") as f:
-        dictionnary_file = box.encrypt(f.read())
+        pickle_file = box.encrypt(f.read())
         with open(server_path, "wb") as ef:
-            ef.write(dictionnary_file)
+            ef.write(pickle_file)
 
 
-def decrypt_dict_file(filename: str, key: bytes) -> dict:
+def decrypt_pickle(filename: str, key: bytes, defaultvalue: Any) -> Any:
     box = nacl.secret.SecretBox(key)
     server_path = SERVER_ROOT / filename
     client_path = CLIENT_ROOT / f"{filename}.pkl"
@@ -80,16 +81,16 @@ def decrypt_dict_file(filename: str, key: bytes) -> dict:
     # Download and decrypt file
     try:
         with open(server_path, "rb") as ef:
-            dictionnary_file = box.decrypt(ef.read())
+            pickle_file = box.decrypt(ef.read())
             with open(client_path, "wb") as f:
-                f.write(dictionnary_file)
+                f.write(pickle_file)
     except FileNotFoundError:
-        console.error("Dict file not found.")
+        console.error("Pickle file not found.")
 
     # Read pickle
     try:
         with open(client_path, "rb") as f:
-            dictionnary = pickle.load(f)
+            pickle_file = pickle.load(f)
     except FileNotFoundError:
-        dictionnary = {}
-    return dictionnary
+        pickle_file = defaultvalue
+    return pickle_file
