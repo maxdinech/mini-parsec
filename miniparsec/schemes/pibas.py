@@ -20,10 +20,12 @@ class PiBas(Scheme):
             )
             databases.create_index(self.conn, table_name)
 
-    def tokenize(self, word: str) -> PiToken:
+    def tokenize(self, word: str, prefix: str = "", key: bytes = b"") -> PiToken:
+        if not key:
+            key = self.key
         return PiToken(
-            crypt.hmac(f"1{word}", self.key),
-            crypt.hmac(f"2{word}", self.key),
+            crypt.hmac(f"{prefix}1{word}", key),
+            crypt.hmac(f"{prefix}2{word}", key),
         )
 
     def search_token(

@@ -1,10 +1,10 @@
 import argparse
 
-from nacl.hash import blake2b
-
 from miniparsec import databases, schemes
 from miniparsec.paths import CLIENT_ROOT
 from miniparsec.utils import console, datasets, timing, watcher
+
+from .crypt import hmac
 
 
 def main() -> None:
@@ -43,11 +43,11 @@ def main() -> None:
         return
 
     keyword: bytes = bytes(args.key, "utf-8")
-    key: bytes = blake2b(keyword)[:32]
+    key: bytes = hmac(keyword)[:32]
 
     conn = databases.connect_db()
 
-    scheme = schemes.PiPackPlus(key, conn, 16)
+    scheme = schemes.PiBasPlus(key, conn)
 
     match args.command:
         case "server":
@@ -66,7 +66,12 @@ def main() -> None:
             if args.newkey is None:
                 _ = timing.timing(scheme.merge)()
             else:
-                pass
+                new_keyword: bytes = bytes(args.newkey, "utf-8")
+                new_key: bytes = hmac(new_keyword)[:32]
+                scheme.newkey = new_key
+                _ = timing.timing(scheme.merge)()
+                scheme.key = new_key
+                scheme.newkey = None
 
             console.log("merge done.")
 

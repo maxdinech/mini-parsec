@@ -8,7 +8,6 @@ from watchdog.observers import Observer
 from miniparsec.schemes import Scheme
 from miniparsec.utils import console, file
 
-from . import timing
 
 
 class Watcher:

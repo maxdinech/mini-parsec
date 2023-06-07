@@ -5,7 +5,6 @@ from rich.progress import Progress
 
 from miniparsec import crypt, databases, index
 from miniparsec.paths import CLIENT_ROOT
-from miniparsec.tokens import PiToken
 from miniparsec.utils import console
 
 from .pibas import PiBas
@@ -20,12 +19,6 @@ class PiBasPlus(PiBas):
     def reset(self):
         super().reset()
 
-    def tokenize(self, word: str, prefix: str = "") -> PiToken:
-        return PiToken(
-            crypt.hmac(f"{prefix}1{word}", self.key),
-            crypt.hmac(f"{prefix}2{word}", self.key),
-        )
-
     def search_word(self, word: str) -> set[str]:
         results = set()
         for table_name in self.tables_names:
@@ -39,7 +32,9 @@ class PiBasPlus(PiBas):
         self, word: str, count: int, filename: str, table_name: str
     ) -> None:
         cursor = self.conn.cursor()
-        token = self.tokenize(word, prefix=table_name)
+
+        key = self.key if self.newkey is None else self.newkey
+        token = self.tokenize(word, prefix=table_name, key=key)
 
         query = sql.SQL("INSERT INTO {} VALUES (%s, %s)").format(
             sql.Identifier(table_name)
@@ -81,34 +76,57 @@ class PiBasPlus(PiBas):
 
     def merge(self) -> None:
         """Fusion de EDB et EDB2."""
+
+        recrypt = self.newkey is not None
+
         edb_count: dict[str, int] = crypt.decrypt_pickle("edb_count", self.key, {})
         edb2_count: dict[str, int] = crypt.decrypt_pickle("edb2_count", self.key, {})
-        new_data = {}
+        global_index = {}
 
         console.log("Merging tables...")
 
+        if recrypt:
+            with Progress() as progress:
+                total = sum(edb2_count.values())
+                load_words = progress.add_task("Loading EDB words...", total=total)
+
+                for word in edb_count:
+                    edb_token = self.tokenize(word, prefix="edb")
+                    max_count = edb_count[word]
+                    results = self.search_token(edb_token, "edb", max_count=max_count)
+                    edb_count[word] = 0
+                    global_index[word] = results
+                    progress.update(load_words, advance=edb_count[word])
+
         with Progress() as progress:
             total = sum(edb2_count.values())
-            load_words = progress.add_task("Loading EDB2 words...", total=total)
+            load_words2 = progress.add_task("Loading EDB2 words...", total=total)
 
             for word in edb2_count:
                 edb2_token = self.tokenize(word, prefix="edb2")
                 results = self.search_token(
                     edb2_token, "edb2", max_count=edb2_count[word]
                 )
-                new_data[word] = results
-                progress.update(load_words, advance=edb2_count[word])
+                if word not in global_index:
+                    global_index[word] = set()
+                global_index.get(word, set()).update(results)
+                progress.update(load_words2, advance=edb2_count[word])
 
-            total = sum(len(v) for v in new_data.values())
+        databases.truncate_table(self.conn, "edb2")
+        if recrypt:
+            databases.truncate_table(self.conn, "edb")
+
+        with Progress() as progress:
+            total = sum(len(v) for v in global_index.values())
             add_words = progress.add_task("Adding words to EDB...", total=total)
 
-            for word in new_data:
+            for word in global_index:
                 count = edb_count.get(word, 0)
-                for filename in new_data[word]:
+                for filename in global_index[word]:
                     self.add_word_helper(word, count, str(filename), "edb")
                     count += 1
                     edb_count[word] = count
-                progress.update(add_words, advance=len(new_data[word]))
+                progress.update(add_words, advance=len(global_index[word]))
             self.conn.commit()
 
         databases.truncate_table(self.conn, "edb2")

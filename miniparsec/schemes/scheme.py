@@ -14,6 +14,7 @@ class Scheme:
         self.key: bytes = key
         self.protected_filenames: set[str]
         self.table_names: tuple[str]
+        self.newkey: bytes | None = None
 
     def reset(self) -> None:
         folder.empty(CLIENT_ROOT)
