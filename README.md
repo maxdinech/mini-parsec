@@ -80,10 +80,10 @@ python -m miniparsec search --key KEYWORD --query WORD1+WORD2+WORD3
 python -m miniparsec search --key KEYWORD --query WORD1+WORD2+WORD3 --union
 ```
 
-### `Repack`
+### `Fusion des BDD`
 
 ```Python
-python -m miniparsec repack --key KEYWORD
+python -m miniparsec merge --key KEYWORD
 ```
 
 ### `Re-chiffrement`
@@ -91,7 +91,7 @@ python -m miniparsec repack --key KEYWORD
 **Note :** Pas encore fonctionnel.
 
 ```Python
-python -m miniparsec repack --key KEYWORD --newkey NEW KEYWORD
+python -m miniparsec merge --key KEYWORD --newkey NEW KEYWORD
 ```
 
 ## Sources et articles
