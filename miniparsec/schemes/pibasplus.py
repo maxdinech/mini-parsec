@@ -4,8 +4,8 @@ from psycopg import Connection, sql
 from rich.progress import Progress
 
 from miniparsec import crypt, databases, index
-from miniparsec.paths import CLIENT_ROOT
-from miniparsec.utils import console
+from miniparsec.paths import CLIENT_ROOT, SERVER_ROOT
+from miniparsec.utils import console, file
 
 from .pibas import PiBas
 
@@ -13,20 +13,11 @@ from .pibas import PiBas
 class PiBasPlus(PiBas):
     def __init__(self, key: bytes, conn: Connection) -> None:
         super().__init__(key, conn)
-        self.tables_names = ("edb", "edb2")
+        self.tables_names: set[str] = {"edb", "edb2"}
         self.protected_filenames = {"edb_count.pkl", "edb2_count.pkl"}
 
     def reset(self):
         super().reset()
-
-    def search_word(self, word: str) -> set[str]:
-        results = set()
-        for table_name in self.tables_names:
-            token = self.tokenize(word, prefix=table_name)
-            table_results = self.search_token(token, table_name)
-            console.log(f"{len(table_results)} results in table {table_name}.")
-            results.update(table_results)
-        return results
 
     def add_word_helper(
         self, word: str, count: int, filename: str, table_name: str
@@ -58,21 +49,37 @@ class PiBasPlus(PiBas):
 
     def add_file_words(self, client_path: Path, verbose=True) -> int:
         edb2_count: dict[str, int] = crypt.decrypt_pickle("edb2_count", self.key, {})
-        file_index, word_count = index.file_index(client_path)
 
-        filename = str(client_path.relative_to(CLIENT_ROOT))
-        for word in file_index:
-            count = edb2_count.get(word, 0)
-            self.add_word_helper(word, count, filename, "edb2")
-            edb2_count[word] = count + 1
+        if self.groupsearch:
+            file_index_group: dict[str, set[str]]
+            file_index_group, word_count = index.index_file_group(client_path)
+            index_length = len(file_index_group)
+            for word, nextwords in file_index_group.items():
+                path = str(client_path.relative_to(CLIENT_ROOT))
+                entry = set(((path, frozenset(nextwords)),))
+                count = edb2_count.get(word, 0)
+                self.add_word_helper(word, count, str(entry), "edb2")
+                edb2_count[word] = count + 1
+
+        else:
+            file_index: set[str]
+            file_index, word_count = index.index_file(client_path)
+            index_length = len(file_index)
+            path = str(client_path.relative_to(CLIENT_ROOT))
+            path_set = set((path,))
+            for word in file_index:
+                count = edb2_count.get(word, 0)
+                self.add_word_helper(word, count, str(path_set), "edb2")
+                edb2_count[word] = count + 1
+
         self.conn.commit()
         console.log(
-            f"Words: {word_count:6,d}, Unique words : {len(file_index):6,d}, edb2_count : {len(edb2_count):6,d}.",
+            f"Words: {word_count:6,d}, Unique words : {index_length:6,d}, edb2_count : {len(edb2_count):6,d}.",
             verbose=verbose,
         )
         crypt.encrypt_pickle(edb2_count, "edb2_count", self.key)
 
-        return len(file_index)
+        return index_length
 
     def merge(self) -> None:
         """Fusion de EDB et EDB2."""
@@ -81,7 +88,7 @@ class PiBasPlus(PiBas):
 
         edb_count: dict[str, int] = crypt.decrypt_pickle("edb_count", self.key, {})
         edb2_count: dict[str, int] = crypt.decrypt_pickle("edb2_count", self.key, {})
-        global_index = {}
+        global_index: dict[str, set[str] | set[tuple[str, set[str]]]] = {}
 
         console.log("Merging tables...")
 
@@ -109,7 +116,8 @@ class PiBasPlus(PiBas):
                 )
                 if word not in global_index:
                     global_index[word] = set()
-                global_index.get(word, set()).update(results)
+
+                global_index.get(word).update(results)
                 progress.update(load_words2, advance=edb2_count[word])
 
         databases.truncate_table(self.conn, "edb2")
@@ -122,8 +130,9 @@ class PiBasPlus(PiBas):
 
             for word in global_index:
                 count = edb_count.get(word, 0)
-                for filename in global_index[word]:
-                    self.add_word_helper(word, count, str(filename), "edb")
+                for entry in global_index[word]:
+                    str_entry = str(set((entry,)))
+                    self.add_word_helper(word, count, str_entry, "edb")
                     count += 1
                     edb_count[word] = count
                 progress.update(add_words, advance=len(global_index[word]))
@@ -132,4 +141,5 @@ class PiBasPlus(PiBas):
         databases.truncate_table(self.conn, "edb2")
 
         crypt.encrypt_pickle(edb_count, "edb_count", self.key)
-        crypt.encrypt_pickle(edb2_count, "edb2_count", self.key)
+        file.delete(SERVER_ROOT / "edb2_count")
+        file.delete(CLIENT_ROOT / "edb2_count.pkl")

@@ -9,7 +9,6 @@ from miniparsec.schemes import Scheme
 from miniparsec.utils import console, file
 
 
-
 class Watcher:
     def __init__(self, directory, handler):
         self.observer = Observer()
@@ -42,9 +41,10 @@ class MyHandler(FileSystemEventHandler):
         }
 
     def on_any_event(self, event):
+        client_path = Path(event.src_path)
+
         match event.event_type:
             case "created":
-                client_path = Path(event.src_path)
                 if event.is_directory:
                     server_path = file.get_server_path(client_path)
                     try:
@@ -93,4 +93,8 @@ class MyHandler(FileSystemEventHandler):
             case "deleted":
                 file_path = event.src_path
                 console.log(f"File '{file_path}' deleted by user.")
-                _ = self.scheme.remove_file(file_path)
+                basename = client_path.name
+                is_tempfile = basename[:5] == "temp_"
+                is_protected = basename in self.scheme.protected_filenames
+                if not is_protected and not is_tempfile:
+                    _ = self.scheme.remove_file(file_path)

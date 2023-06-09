@@ -2,7 +2,8 @@ from psycopg import Connection
 from rich.progress import Progress
 
 from miniparsec import crypt, databases
-from miniparsec.utils import console
+from miniparsec.paths import CLIENT_ROOT, SERVER_ROOT
+from miniparsec.utils import console, file
 
 from .pibasplus import PiBasPlus
 
@@ -20,7 +21,7 @@ class PiPackPlus(PiBasPlus):
 
         edb_count: dict[str, int] = crypt.decrypt_pickle("edb_count", self.key, {})
         edb2_count: dict[str, int] = crypt.decrypt_pickle("edb2_count", self.key, {})
-        global_index = {}
+        global_index: dict[str, set[str] | set[tuple[str, set[str]]]] = {}
 
         console.log("Merging tables...")
 
@@ -64,11 +65,11 @@ class PiPackPlus(PiBasPlus):
             for word in global_index:
                 count = edb_count.get(word, 0)
                 filenames = list(global_index[word]) + [None] * B  # Pour itérer
-                for filename_group in zip(*[iter(filenames)] * B):
-                    if all(f is None for f in filename_group):
+                for entry_group in zip(*[iter(filenames)] * B):
+                    if all(f is None for f in entry_group):
                         continue
-                    filename_str = str(set(f for f in filename_group if f is not None))
-                    self.add_word_helper(word, count, str(filename_str), "edb")
+                    entry_str = str(set(f for f in entry_group if f is not None))
+                    self.add_word_helper(word, count, str(entry_str), "edb")
                     count += 1
                     edb_count[word] = count
                 progress.update(add_words, advance=len(global_index[word]))
@@ -76,4 +77,5 @@ class PiPackPlus(PiBasPlus):
 
         key = self.key if self.newkey is None else self.newkey
         crypt.encrypt_pickle(edb_count, "edb_count", key)
-        crypt.encrypt_pickle(edb2_count, "edb2_count", key)
+        file.delete(SERVER_ROOT / "edb2_count")
+        file.delete(CLIENT_ROOT / "edb2_count.pkl")

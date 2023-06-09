@@ -2,6 +2,7 @@ from psycopg import Connection, sql
 
 from miniparsec import crypt, databases
 from miniparsec.tokens import PiToken
+from miniparsec.utils import console
 
 from .scheme import Scheme
 
@@ -9,7 +10,7 @@ from .scheme import Scheme
 class PiBas(Scheme):
     def __init__(self, key: bytes, conn: Connection) -> None:
         super().__init__(key, conn)
-        self.tables_names = ("edb",)
+        self.tables_names: set[str] = {"edb"}
 
     def reset(self):
         super().reset()
@@ -34,7 +35,7 @@ class PiBas(Scheme):
         table_name: str,
         count: int = 0,
         max_count: int | None = None,
-    ) -> set[str]:
+    ) -> set[str] | set[tuple[str, set[str]]]:
         cursor = self.conn.cursor()
         result = set()
 
@@ -53,16 +54,18 @@ class PiBas(Scheme):
             fetchone = cursor.fetchone()
             if fetchone is None:
                 break
+            query_result = crypt.decrypt(fetchone[0], key=token.k2).decode("utf-8")
+            # console.log(query_result)
+            result_set: set = eval(query_result)
 
-            path = crypt.decrypt(fetchone[0], key=token.k2).decode("utf-8")
-            try:
-                paths = eval(path)
-            except Exception:
-                result.add(path)
-            else:
-                if isinstance(paths, set):
-                    result.update(paths)
+            for entry in result_set:
+                if self.groupsearch:
+                    file, nextwords = entry
+                    nextwords = frozenset(nextwords)
+                    result.add((file, nextwords))
                 else:
-                    result.add(path)
+                    file = entry
+                    result.add(file)
+
             count += 1
         return result

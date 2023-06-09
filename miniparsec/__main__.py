@@ -22,8 +22,9 @@ def main() -> None:
     search = subparsers.add_parser("search", help="Search words")
     search.add_argument("-K", "--key", type=str, help="search term", required=True)
     search.add_argument("-q", "--query", type=str, help="search term", required=True)
-    search.add_argument("-i", "--inter", help="query intersect", action=store)
-    search.add_argument("-u", "--union", help="query union", action=store)
+    search.add_argument("-i", "--inter", help="search intersection", action=store)
+    search.add_argument("-u", "--union", help="search union", action=store)
+    search.add_argument("-g", "--group", help="search wordgroup", action=store)
     search.add_argument("-s", "--show", help="show results", action=store)
 
     server = subparsers.add_parser("server", help="Mini-parsec server")
@@ -47,7 +48,8 @@ def main() -> None:
 
     conn = databases.connect_db()
 
-    scheme = schemes.PiBasPlus(key, conn)
+    SCHEME = schemes.PiPackPlus(key, conn, 16)
+    # SCHEME.groupsearch = True
 
     match args.command:
         case "server":
@@ -55,23 +57,23 @@ def main() -> None:
             if args.reset:
                 console.log("Clearing databases and local files...")
                 console.log("Creating databases...")
-                scheme.reset()
+                SCHEME.reset()
 
-            w = watcher.Watcher(CLIENT_ROOT, watcher.MyHandler(scheme))
+            w = watcher.Watcher(CLIENT_ROOT, watcher.MyHandler(SCHEME))
             w.run()
 
         case "merge":
             conn = databases.connect_db()
             # Pas de nouvelle clé
             if args.newkey is None:
-                _ = timing.timing(scheme.merge)()
+                _ = timing.timing(SCHEME.merge)()
             else:
                 new_keyword: bytes = bytes(args.newkey, "utf-8")
                 new_key: bytes = hmac(new_keyword)[:32]
-                scheme.newkey = new_key
-                _ = timing.timing(scheme.merge)()
-                scheme.key = new_key
-                scheme.newkey = None
+                SCHEME.newkey = new_key
+                _ = timing.timing(SCHEME.merge)()
+                SCHEME.key = new_key
+                SCHEME.newkey = None
 
             console.log("merge done.")
 
@@ -82,12 +84,14 @@ def main() -> None:
             words = [word.lower() for word in words]
             if len(words) == 1:
                 word = words[0]
-                _, results = timing.timing(scheme.search_word)(word)
+                _, results = timing.timing(SCHEME.search_word)(word)
             elif len(words) > 1:
                 if args.union:
-                    _, results = timing.timing(scheme.search_union)(words)
+                    _, results = timing.timing(SCHEME.search_union)(words)
+                elif args.group and SCHEME.groupsearch:
+                    _, results = timing.timing(SCHEME.search_group)(words)
                 else:
-                    _, results = timing.timing(scheme.search_intersection)(words)
+                    _, results = timing.timing(SCHEME.search_intersection)(words)
             else:
                 console.error("No words provided.")
                 results = set()
