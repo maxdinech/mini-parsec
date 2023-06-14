@@ -35,7 +35,7 @@ class PiBas(Scheme):
         table_name: str,
         count: int = 0,
         max_count: int | None = None,
-    ) -> set[str] | set[tuple[str, set[str]]]:
+    ) -> set[str]:
         cursor = self.conn.cursor()
         result = set()
 
@@ -55,17 +55,11 @@ class PiBas(Scheme):
             if fetchone is None:
                 break
             query_result = crypt.decrypt(fetchone[0], key=token.k2).decode("utf-8")
-            # console.log(query_result)
             result_set: set = eval(query_result)
 
             for entry in result_set:
-                if self.groupsearch:
-                    file, nextwords = entry
-                    nextwords = frozenset(nextwords)
-                    result.add((file, nextwords))
-                else:
-                    file = entry
-                    result.add(file)
+                file = entry
+                result.add(file)
 
             count += 1
         return result

@@ -24,7 +24,6 @@ def main() -> None:
     search.add_argument("-q", "--query", type=str, help="search term", required=True)
     search.add_argument("-i", "--inter", help="search intersection", action=store)
     search.add_argument("-u", "--union", help="search union", action=store)
-    search.add_argument("-g", "--group", help="search wordgroup", action=store)
     search.add_argument("-s", "--show", help="show results", action=store)
 
     server = subparsers.add_parser("server", help="Mini-parsec server")
@@ -48,8 +47,7 @@ def main() -> None:
 
     conn = databases.connect_db()
 
-    SCHEME = schemes.PiPackPlus(key, conn, 16)
-    # SCHEME.groupsearch = True
+    SCHEME = schemes.PiPackPlus(key, conn, 100)
 
     match args.command:
         case "server":
@@ -88,8 +86,6 @@ def main() -> None:
             elif len(words) > 1:
                 if args.union:
                     _, results = timing.timing(SCHEME.search_union)(words)
-                elif args.group and SCHEME.groupsearch:
-                    _, results = timing.timing(SCHEME.search_group)(words)
                 else:
                     _, results = timing.timing(SCHEME.search_intersection)(words)
             else:
