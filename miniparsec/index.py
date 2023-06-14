@@ -1,38 +1,77 @@
 import re
 from pathlib import Path
 
+import textract
+from nltk.stem import PorterStemmer
+from textract.exceptions import ExtensionNotSupported
 from unidecode import unidecode
 
-REGEX = r"[a-z]+"
+from miniparsec.utils import console
+
+ps = PorterStemmer()
+REGEX = r"[a-zA-Z]+"
+
+EXTENSIONS = {
+    ".csv",
+    ".doc",
+    ".docx",
+    ".eml",
+    ".epub",
+    ".gif",
+    ".htm",
+    ".html",
+    ".jpeg",
+    ".jpg",
+    ".json",
+    ".log",
+    ".mp3",
+    ".msg",
+    ".odt",
+    ".ogg",
+    ".pdf",
+    ".png",
+    ".pptx",
+    ".ps",
+    ".psv",
+    ".rtf",
+    ".tab",
+    ".tff",
+    ".tif",
+    ".tiff",
+    ".tsv",
+    ".txt",
+    ".wav",
+    ".xls",
+    ".xlsx",
+}
 
 
-def index_file(path: Path, min_length: int = 2) -> tuple[set[str], int]:
+def stem(word: str) -> str:
+    """Calcule le stem d'un mot."""
+    return ps.stem(word.lower())
+
+
+def index_file(path: Path, min_length: int = 2) -> set[str]:
+    """Retourne un ensemble contenant tous les mots d'un fichier.
+
+    Args:
+        path: Chemin vers le fichier
+        min_length: Longueur minimale d'un mots
+    """
     index = set()
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            clean_line = unidecode(line.strip().lower())
-            line_words_raw = re.findall(REGEX, clean_line)
-            line_words = set(str(w) for w in line_words_raw if len(w) >= min_length)
-            index.update(line_words)
-    return index, len(index)
-
-
-def index_file_group(path: Path) -> tuple[dict[str, set[str]], int]:
-    words = []
-    index = {}
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
-            clean_line = unidecode(line.strip().lower())
-            line_words_raw = re.findall(REGEX, clean_line)
-            line_words = [str(w) for w in line_words_raw if w]
-            words += line_words
-    for i in range(len(words)):
-        word = words[i]
+    extension = path.suffix
+    if extension in EXTENSIONS:
+        text = textract.process(path)
+    else:
         try:
-            next = words[i + 1]
-        except IndexError:
-            next = ""
-        if word not in index:
-            index[word] = set()
-        index[word].add(next)
-    return index, len(index)
+            text = textract.process(path, extension="txt")
+        except ExtensionNotSupported as e:
+            console.error(e)
+            return set()
+
+    text = text.decode("utf-8")
+    clean_text = unidecode(text.strip())
+    words_raw = re.findall(REGEX, clean_text)
+    stem_tokens = [stem(word) for word in words_raw if len(word) >= min_length]
+    index.update(stem_tokens)
+    return index
