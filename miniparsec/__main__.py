@@ -38,8 +38,9 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "dataset":
-        datasets.download_gutenberg_database()
-        datasets.download_enron_database()
+        datasets.download_gutenberg()
+        datasets.download_enron()
+        datasets.download_corpora()
         return
 
     keyword: bytes = bytes(args.key, "utf-8")
