@@ -4,11 +4,13 @@ from psycopg import Connection
 
 from miniparsec import crypt
 from miniparsec.paths import CLIENT_ROOT, SERVER_ROOT
-from miniparsec.tokens import Token
+from miniparsec.tokens import SophosToken
 from miniparsec.utils import console, file, folder, timing
 
+from .scheme import Scheme
 
-class Scheme:
+
+class Sophos(Scheme):
     def __init__(self, key: bytes, conn: Connection) -> None:
         self.conn: Connection = conn
         self.key: bytes = key
@@ -20,20 +22,20 @@ class Scheme:
         folder.empty(CLIENT_ROOT)
         folder.empty(SERVER_ROOT)
 
-    def tokenize(self, word: str, prefix: str = "") -> Token:
+    def tokenize(self, word: str, prefix: str = "") -> SophosToken:
         del word, prefix
-        return Token()
+        return SophosToken()
 
-    def add_token(self, token: Token, client_path: Path) -> None:
+    def add_token(self, token: SophosToken, client_path: Path) -> None:
         del token, client_path
         pass
 
-    def remove_token(self, token: Token, client_path: Path) -> None:
+    def remove_token(self, token: SophosToken, client_path: Path) -> None:
         del token, client_path
         console.log("No token removal method yet.")
 
     def search_token(
-        self, token: Token, table_name: str
+        self, token: SophosToken, table_name: str
     ) -> set[str] | set[tuple[str, set[str]]]:
         del token, table_name
         return set()

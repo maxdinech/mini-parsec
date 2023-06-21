@@ -1,6 +1,6 @@
 from psycopg import Connection, sql
 
-from miniparsec import crypt, databases
+from miniparsec import crypt, databases, index
 from miniparsec.tokens import PiToken
 from miniparsec.utils import console
 
@@ -63,3 +63,14 @@ class PiBas(Scheme):
 
             count += 1
         return result
+
+    def search_word(self, word: str) -> set[str]:
+        results = set()
+        word = index.stem(word)
+        for table_name in self.tables_names:
+            token = self.tokenize(word, prefix=table_name)
+            table_results = self.search_token(token, table_name)
+            console.log(f"{len(table_results)} results in table {table_name}.")
+            results.update(table_results)
+
+        return results

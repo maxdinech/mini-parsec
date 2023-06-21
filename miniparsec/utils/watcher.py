@@ -56,6 +56,7 @@ class MyHandler(FileSystemEventHandler):
                     is_tempfile = basename[:5] == "temp_"
                     is_protected = basename in self.scheme.protected_filenames
                     if not is_protected and not is_tempfile:
+                        verbose = True
                         verbose = self.stats["files"] % 100 == 99
                         console.log(
                             f"File '{client_path}' added by user.", verbose=verbose

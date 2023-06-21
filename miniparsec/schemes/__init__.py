@@ -6,12 +6,14 @@ from .pibasdyn import PiBasDyn
 from .pibasplus import PiBasPlus
 from .pipackplus import PiPackPlus
 from .scheme import Scheme
+from .sophos import Sophos
 
 __all__ = [
     "scheme",
-    "Scheme",
     "PiBas",
     "PiBasDyn",
     "PiBasPlus",
     "PiPackPlus",
+    "Scheme",
+    "Sophos",
 ]

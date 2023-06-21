@@ -1,6 +1,7 @@
 import argparse
+from pathlib import Path
 
-from miniparsec import databases, schemes
+from miniparsec import databases, index, schemes
 from miniparsec.paths import CLIENT_ROOT
 from miniparsec.utils import console, datasets, timing, watcher
 
@@ -34,6 +35,9 @@ def main() -> None:
     merge.add_argument("-K", "--key", type=str, help="search term", required=True)
     merge.add_argument("-K2", "--newkey", type=str, help="new key", default=None)
 
+    indexf = subparsers.add_parser("index", help="show index of a specific clear file.")
+    indexf.add_argument("-f", "--file", type=str, help="file path", required=True)
+
     subparsers.required = True
     args = parser.parse_args()
 
@@ -42,6 +46,10 @@ def main() -> None:
         datasets.download_enron()
         datasets.download_corpora()
         return
+    elif args.command == "index":
+        path = Path(args.file)
+        result = index.index_file(path)
+        console.log(result)
 
     keyword: bytes = bytes(args.key, "utf-8")
     key: bytes = hmac(keyword)[:32]
